@@ -130,7 +130,7 @@ curl http://localhost:8000/api/balance/{endereco}
 
 - [x] Geração de chaves (Entropy, BIP39, BIP32)
 - [x] Geração de endereços
-- [x] Consulta de saldos
+- [ ] Consulta de saldos
 - [ ] Construção de transações
 - [ ] Assinatura de transações
 - [ ] Broadcast de transações
