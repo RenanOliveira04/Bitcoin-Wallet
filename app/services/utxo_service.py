@@ -1,5 +1,5 @@
 from app.services.transaction import BitcoinLibBuilder, TransactionValidator
-from app.models.tx_models import TransactionRequest, TransactionResponse
+from app.models.utxo_models import TransactionRequest, TransactionResponse
 import logging
 
 logger = logging.getLogger(__name__)

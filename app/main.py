@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import keys, addresses, balance, tx, broadcast
+from app.routers import keys, addresses, balance, utxo, broadcast
 from app.dependencies import get_network
 import logging
 import logging.config
@@ -55,7 +55,7 @@ app.add_middleware(
 app.include_router(keys.router, prefix="/api/keys")
 app.include_router(addresses.router, prefix="/api/addresses")
 app.include_router(balance.router, prefix="/api/balance")
-app.include_router(tx.router, prefix="/api/tx")
+app.include_router(utxo.router, prefix="/api/utxo")
 app.include_router(broadcast.router, prefix="/api/broadcast")
 
 # Health check

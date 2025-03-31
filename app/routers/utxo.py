@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from app.models.tx_models import TransactionRequest, TransactionResponse
-from app.services.tx_service import build_transaction
+from app.models.utxo_models import TransactionRequest, TransactionResponse
+from app.services.utxo_service import build_transaction
 from app.dependencies import get_network
 
 router = APIRouter()

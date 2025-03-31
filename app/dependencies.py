@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
+import bech32
 
 class Settings(BaseSettings):
     network: str = "testnet"
@@ -14,6 +15,11 @@ def get_settings():
 
 def get_network():
     return get_settings().network
+
+def bech32_encode(network: str, witver: int, data: bytes) -> str:
+    hrp = "bc" if network == "mainnet" else "tb"
+    converted = bech32.convertbits(data, 8, 5)
+    return bech32.bech32_encode(hrp, [witver] + converted)
 
 def get_blockchain_api_url(network: str = None):
     if not network:
