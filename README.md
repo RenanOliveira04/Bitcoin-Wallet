@@ -1,24 +1,18 @@
-# Bitcoin Wallet para Desenvolvedores
+# Bitcoin Wallet API
 
-Uma carteira Bitcoin voltada para desenvolvedores que permite acompanhar e entender todas as etapas do processo de criação e gerenciamento de chaves, endereços e transações Bitcoin.
+API para gerenciamento de carteiras Bitcoin, suportando diferentes formatos de endereços e geração de chaves.
 
-## Sobre o Projeto
+## Funcionalidades
 
-Esta carteira Bitcoin é compatível com MainNet e TestNet, permitindo:
+- Geração de chaves Bitcoin (P2PKH, P2SH, P2WPKH, P2TR)
+- Geração de endereços em diferentes formatos
+- Consulta de saldo e UTXOs
+- Construção de transações
 
-- Geração e gerenciamento de chaves (Entropy, BIP39, BIP32)
-- Criação de diferentes tipos de endereços Bitcoin
-- Consulta de saldos e UTXOs
-- Construção, assinatura e broadcast de transações
-- Acompanhamento detalhado de cada etapa do processo
+## Requisitos
 
-O diferencial é ser uma carteira focada em desenvolvedores, expondo os detalhes técnicos e permitindo maior controle sobre o processo.
-
-## Pré-requisitos
-
-- Python 3.9+
-- pip (gerenciador de pacotes Python)
-- Sistema operacional: Windows ou Linux
+- Python 3.8+
+- Dependências listadas em `requirements.txt`
 
 ## Instalação
 
@@ -28,58 +22,43 @@ git clone https://github.com/seu-usuario/bitcoin-wallet.git
 cd bitcoin-wallet
 ```
 
-2. Crie e ative um ambiente virtual:
-
-No Windows:
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-No Linux:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-3. Instale as dependências:
+2. Instale as dependências:
 ```bash
 pip install -r requirements.txt
 ```
 
-## Configuração
-
-1. Crie um arquivo `.env` na raiz do projeto:
-```env
-NETWORK=testnet  # ou mainnet
-BLOCKCHAIN_API_URL=https://api.blockchair.com/bitcoin
-```
-
-## Executando o Projeto
-
-1. No Windows PowerShell:
-```powershell
-cd bitcoin-wallet
-uvicorn app.main:app --reload
-```
-
-2. No Linux:
+3. Configure as variáveis de ambiente (opcional):
 ```bash
-cd bitcoin-wallet
+cp .env.example .env
+# Edite o arquivo .env com suas configurações
+```
+
+## Uso
+
+1. Inicie o servidor:
+```bash
 uvicorn app.main:app --reload
 ```
 
-O servidor estará rodando em `http://localhost:8000`
+2. Acesse a documentação da API:
+```
+http://localhost:8000/docs
+```
 
-## Documentação da API
+## Endpoints
 
-Acesse a documentação Swagger UI em: `http://localhost:8000/docs`
+### Geração de Chaves
 
-## Exemplos de Uso
+```bash
+POST /api/keys
+```
 
-### 1. Gerando Chaves
+Gera uma nova chave Bitcoin usando diferentes métodos:
+- `entropy`: Gera uma chave aleatória
+- `bip39`: Gera uma chave a partir de uma frase mnemônica
+- `bip32`: Gera uma chave derivada usando BIP32
 
-#### Usando Entropia:
+Exemplo de requisição:
 ```bash
 curl -X POST http://localhost:8000/api/keys \
 -H "Content-Type: application/json" \
@@ -89,61 +68,151 @@ curl -X POST http://localhost:8000/api/keys \
 }'
 ```
 
-#### Usando BIP39 (com geração automática de mnemônico):
+Resposta:
+```json
+{
+  "private_key": "chave_privada_hex",
+  "public_key": "chave_publica_hex",
+  "address": "endereço_p2pkh",
+  "derivation_path": null,
+  "mnemonic": null
+}
+```
+
+### Geração de Endereços
+
 ```bash
-curl -X POST http://localhost:8000/api/keys \
+GET /api/addresses/{format}
+```
+
+Gera um endereço Bitcoin no formato especificado a partir de uma chave privada.
+
+#### Formatos Suportados:
+
+1. **P2PKH (Legacy)**
+   - Prefixo: `1` (mainnet) ou `m` (testnet)
+   - Exemplo: `1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa`
+   - Uso: Compatível com todas as carteiras Bitcoin
+
+2. **P2SH (SegWit)**
+   - Prefixo: `3` (mainnet) ou `2` (testnet)
+   - Exemplo: `3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy`
+   - Uso: Compatível com carteiras que suportam SegWit
+
+3. **P2WPKH (Native SegWit)**
+   - Prefixo: `bc1` (mainnet) ou `tb1` (testnet)
+   - Exemplo: `bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh`
+   - Uso: Carteiras modernas com suporte a SegWit nativo
+
+4. **P2TR (Taproot)**
+   - Prefixo: `bc1p` (mainnet) ou `tb1p` (testnet)
+   - Exemplo: `bc1p...`
+   - Uso: Carteiras com suporte a Taproot
+
+#### Parâmetros:
+
+- `private_key`: Chave privada em formato hexadecimal
+- `format`: Formato do endereço (p2pkh, p2sh, p2wpkh, p2tr)
+- `network`: Rede Bitcoin (mainnet ou testnet)
+
+#### Exemplos de Requisição:
+
+1. Gerar endereço P2PKH:
+```bash
+curl "http://localhost:8000/api/addresses/p2pkh?private_key=SUA_CHAVE_PRIVADA&network=testnet"
+```
+
+2. Gerar endereço P2SH:
+```bash
+curl "http://localhost:8000/api/addresses/p2sh?private_key=SUA_CHAVE_PRIVADA&network=testnet"
+```
+
+3. Gerar endereço P2WPKH:
+```bash
+curl "http://localhost:8000/api/addresses/p2wpkh?private_key=SUA_CHAVE_PRIVADA&network=testnet"
+```
+
+4. Gerar endereço P2TR (Taproot):
+```bash
+curl "http://localhost:8000/api/addresses/p2tr?private_key=SUA_CHAVE_PRIVADA&network=testnet"
+```
+
+#### Resposta:
+```json
+{
+  "address": "endereço_gerado",
+  "format": "formato_especificado",
+  "network": "rede_especificada"
+}
+```
+
+### Consulta de Saldo e UTXOs
+
+```bash
+GET /api/balance/{address}
+```
+
+Retorna o saldo e UTXOs disponíveis para um endereço.
+
+Exemplo de requisição:
+```bash
+curl "http://localhost:8000/api/balance/tb1p..."
+```
+
+### Construção de Transações
+
+```bash
+POST /api/utxo
+```
+
+Constrói uma transação Bitcoin a partir de UTXOs e saídas especificadas.
+
+Exemplo de requisição:
+```bash
+curl -X POST http://localhost:8000/api/utxo \
 -H "Content-Type: application/json" \
 -d '{
-  "method": "bip39",
-  "network": "testnet"
+  "inputs": [
+    {
+      "prev_tx": "txid",
+      "output_n": 0,
+      "script": "script",
+      "value": 1000000
+    }
+  ],
+  "outputs": [
+    {
+      "address": "endereço",
+      "value": 900000
+    }
+  ],
+  "fee_rate": 1
 }'
 ```
 
-#### Usando BIP32 (com derivação de chaves):
-```bash
-curl -X POST http://localhost:8000/api/keys \
--H "Content-Type: application/json" \
--d '{
-  "method": "bip32",
-  "mnemonic": "seu mnemônico aqui",
-  "derivation_path": "m/44'/1'/0'/0/0",
-  "network": "testnet"
-}'
-```
+## Configuração
 
-### 2. Consultando Saldo
-```bash
-curl http://localhost:8000/api/balance/{endereco}
-```
+A aplicação pode ser configurada através de variáveis de ambiente ou arquivo `.env`:
 
-## Estrutura do Projeto
-````├── app/
-│ ├── routers/ # Endpoints REST
-│ ├── models/ # Modelos Pydantic
-│ ├── services/ # Lógica de negócio
-│ └── dependencies.py # Configurações
-├── tests/ # Testes
-└── requirements.txt # Dependências
-```
+- `NETWORK`: Rede Bitcoin (mainnet ou testnet)
+- `BLOCKCHAIN_API_URL`: URL da API de blockchain
 
-## Recursos Implementados
+## Dependências Principais
 
-- [x] Geração de chaves (Entropy, BIP39, BIP32)
-- [x] Geração de endereços
-- [ ] Consulta de saldos
-- [ ] Construção de transações
-- [ ] Assinatura de transações
-- [ ] Broadcast de transações
-- [ ] Consulta de status de transações
+- `fastapi`: Framework web
+- `bitcoinlib`: Biblioteca para manipulação de chaves e transações Bitcoin
+- `bech32`: Biblioteca para codificação Bech32
+- `pydantic`: Validação de dados
+- `uvicorn`: Servidor ASGI
 
-## Contribuindo
+## Contribuição
 
-1. Fork o projeto
-2. Crie sua Feature Branch (`git checkout -b feature/AmazingFeature`)
+1. Faça um fork do projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
 3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a Branch (`git push origin feature/AmazingFeature`)
+4. Push para a branch (`git push origin feature/AmazingFeature`)
 5. Abra um Pull Request
 
 ## Licença
 
-Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
+Este projeto está licenciado sob a licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes. 
