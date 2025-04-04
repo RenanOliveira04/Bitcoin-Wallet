@@ -32,11 +32,49 @@ cd bitcoin-wallet
 pip install -r requirements.txt
 ```
 
-3. Configure as variáveis de ambiente (opcional):
+3. Configure as variáveis de ambiente:
 ```bash
 cp .env.example .env
 # Edite o arquivo .env com suas configurações
 ```
+
+## Configuração (.env)
+
+A API Bitcoin Wallet pode ser configurada através do arquivo `.env`. Este arquivo **não deve ser commitado no repositório** para proteger informações sensíveis.
+
+### Configurações Básicas
+```
+# Valores possíveis: testnet, mainnet
+NETWORK=testnet
+
+# Valores possíveis: p2pkh, p2sh, p2wpkh, p2tr
+DEFAULT_KEY_TYPE=p2wpkh
+
+# Valores possíveis: DEBUG, INFO, WARNING, ERROR, CRITICAL
+LOG_LEVEL=INFO
+LOG_FILE=bitcoin-wallet.log
+
+# Tempo de cache em segundos
+CACHE_TIMEOUT=300
+```
+
+### Configurações Sensíveis
+Estas configurações podem conter informações sensíveis como URLs, chaves de API, etc., e devem ser mantidas em segurança:
+
+```
+# URLs das APIs (não commitar valores reais)
+BLOCKCHAIN_API_URL=https://api.blockchair.com/bitcoin
+MEMPOOL_API_URL=https://mempool.space/api
+
+# Credenciais de API (se aplicável)
+API_KEY=sua_chave_api
+API_SECRET=seu_segredo_api
+```
+
+> **⚠️ IMPORTANTE:** 
+> 1. Nunca commit seu arquivo `.env` no GitHub
+> 2. O arquivo já está incluído no `.gitignore` para evitar vazamento de informações
+> 3. Para ambientes de produção, considere usar um gerenciador de segredos ou variáveis de ambiente do sistema
 
 ## Uso
 
@@ -48,6 +86,18 @@ uvicorn app.main:app --reload
 2. Acesse a documentação da API:
 ```
 http://localhost:8000/docs
+```
+
+3. Execute os testes:
+```bash
+# Opção 1: Modo interativo
+python tests/test_api.py
+
+# Opção 2: Especificando rede e formato de chave
+python tests/test_api.py testnet p2wpkh
+
+# Opção 3: Usar mainnet
+python tests/test_api.py mainnet p2tr
 ```
 
 ## Endpoints
@@ -69,7 +119,8 @@ curl -X POST http://localhost:8000/api/keys \
 -H "Content-Type: application/json" \
 -d '{
   "method": "entropy",
-  "network": "testnet"
+  "network": "testnet",
+  "key_format": "p2wpkh"
 }'
 ```
 
@@ -78,7 +129,9 @@ Resposta:
 {
   "private_key": "chave_privada_hex",
   "public_key": "chave_publica_hex",
-  "address": "endereço_p2pkh",
+  "address": "endereço_p2wpkh",
+  "format": "p2wpkh",
+  "network": "testnet",
   "derivation_path": null,
   "mnemonic": null
 }

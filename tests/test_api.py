@@ -54,14 +54,15 @@ def test_health():
         print(f"Erro no health check: {str(e)}")
         return False, None
 
-def test_generate_keys(network="testnet"):
+def test_generate_keys(network="testnet", key_format="p2wpkh"):
     """Testa a geração de chaves"""
     print_section("2. GERAÇÃO DE CHAVES")
     try:
-        print(f"Testando geração de chaves na {network}...")
+        print(f"Testando geração de chaves na rede {network} com formato {key_format}...")
         response = requests.post(f"{BASE_URL}/keys", json={
             "method": "entropy", 
-            "network": network
+            "network": network,
+            "key_format": key_format
         })
         
         if response.status_code != 200:
@@ -73,14 +74,26 @@ def test_generate_keys(network="testnet"):
         print(json.dumps(key_data, indent=2))
         
         # Verifica se os campos obrigatórios estão presentes
-        required_fields = ["private_key", "public_key", "address"]
+        required_fields = ["private_key", "public_key", "address", "format", "network"]
         missing_fields = [field for field in required_fields if field not in key_data]
         
         if not missing_fields:
-            print(f"✅ Geração de chaves para {network} funcionando corretamente")
+            print(f"✅ Geração de chaves para {network} no formato {key_format} funcionando corretamente")
         else:
             print(f"❌ Campos ausentes na resposta: {', '.join(missing_fields)}")
         
+        # Verifica se o formato da chave é o solicitado
+        if "format" in key_data and key_data["format"] == key_format:
+            print(f"✅ Formato de chave {key_format} gerado corretamente")
+        else:
+            print(f"⚠️ Formato de chave solicitado ({key_format}) difere do retornado ({key_data.get('format', 'N/A')})")
+        
+        # Verifica se a rede é a solicitada
+        if "network" in key_data and key_data["network"] == network:
+            print(f"✅ Rede {network} configurada corretamente")
+        else:
+            print(f"⚠️ Rede solicitada ({network}) difere da retornada ({key_data.get('network', 'N/A')})")
+                
         # Verifica RNF1.1 - Bibliotecas criptográficas reconhecidas
         print("✅ RNF1.1: Usando bitcoinlib para geração de chaves")
         
@@ -411,166 +424,118 @@ def test_transaction_status(txid):
         return None
 
 def main():
-    """Função principal que executa todos os testes"""
-    print_section("INICIANDO TESTES DE VERIFICAÇÃO DA WALLET BITCOIN")
-    print("Data e Hora:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    """Função principal para execução de testes"""
+    print("\n")
+    print("=" * 80)
+    print("                  BITCOIN WALLET - TESTE DE VERIFICAÇÃO")
+    print(f"                  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 80)
+    print("\n")
     
-    # Testar informações do sistema (para verificar compatibilidade RNF5.1)
-    system = test_system_info()
+    # Obter parâmetros do teste
+    if len(sys.argv) > 1:
+        network = sys.argv[1].lower()
+        if network not in ["testnet", "mainnet"]:
+            print(f"Rede inválida: {network}. Usando testnet como padrão.")
+            network = "testnet"
+    else:
+        network = input("Escolha a rede (testnet/mainnet) [testnet]: ").lower() or "testnet"
+        if network not in ["testnet", "mainnet"]:
+            print(f"Rede inválida: {network}. Usando testnet como padrão.")
+            network = "testnet"
     
-    time.sleep(1)  # Pequena pausa entre as requisições
+    if len(sys.argv) > 2:
+        key_format = sys.argv[2].lower()
+        if key_format not in ["p2pkh", "p2sh", "p2wpkh", "p2tr"]:
+            print(f"Formato de chave inválido: {key_format}. Usando p2wpkh como padrão.")
+            key_format = "p2wpkh"
+    else:
+        key_format = input("Escolha o formato da chave (p2pkh/p2sh/p2wpkh/p2tr) [p2wpkh]: ").lower() or "p2wpkh"
+        if key_format not in ["p2pkh", "p2sh", "p2wpkh", "p2tr"]:
+            print(f"Formato de chave inválido: {key_format}. Usando p2wpkh como padrão.")
+            key_format = "p2wpkh"
     
-    # Testar health check
+    print(f"\nExecutando testes na rede {network} com formato de chave {key_format}\n")
+            
+    test_system_info()
     health_ok, health_data = test_health()
+    
     if not health_ok:
-        print("Falha no health check. Encerrando testes.")
+        print("❌ API não está respondendo. Verifique se o servidor está rodando.")
         return
     
-    current_network = health_data.get("network", "testnet")
+    # Executar os testes em sequência
+    key_data = test_generate_keys(network, key_format)
     
-    time.sleep(1)  # Pequena pausa entre as requisições
-    
-    # Testar geração de chaves para testnet
-    key_data_testnet = test_generate_keys(network="testnet")
-    
-    # Testar geração de chaves para mainnet (RF2.1)
-    key_data_mainnet = test_generate_keys(network="mainnet")
-    
-    if not key_data_testnet and not key_data_mainnet:
-        print("Falha ao obter chaves. Encerrando testes.")
+    if not key_data:
+        print("❌ Não foi possível continuar - falha na geração de chaves")
         return
     
-    # Escolher a chave de acordo com a rede configurada
-    if current_network == "mainnet" and key_data_mainnet:
-        key_data = key_data_mainnet
-    else:
-        key_data = key_data_testnet
+    private_key = key_data.get("private_key")
+    address = key_data.get("address")
     
-    private_key = key_data["private_key"]
+    addresses = test_generate_addresses(private_key, network)
+    balance = test_balance_utxos(address, network)
+    fee = test_fee_estimation()
     
-    time.sleep(1)  # Pequena pausa entre as requisições
-    
-    # Testar geração de endereços em diferentes formatos para testnet
-    addresses_testnet = test_generate_addresses(private_key, network="testnet")
-    
-    # Testar geração de endereços em diferentes formatos para mainnet (RF2.1)
-    addresses_mainnet = test_generate_addresses(private_key, network="mainnet")
-    
-    # Escolher os endereços de acordo com a rede configurada
-    if current_network == "mainnet" and addresses_mainnet:
-        addresses = addresses_mainnet
-    else:
-        addresses = addresses_testnet
-    
-    # Verificar se temos pelo menos um endereço para testar
-    if not addresses:
-        print("Falha ao gerar endereços. Usando endereço de teste para continuar.")
-        test_address = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"  # Testnet
-    else:
-        # Usar o primeiro endereço disponível para testes
-        test_address = None
-        for addr_format in ["p2wpkh", "p2pkh", "p2sh", "p2tr"]:
-            if addr_format in addresses and "address" in addresses[addr_format]:
-                test_address = addresses[addr_format]["address"]
-                break
+    # Testes que dependem de UTXOs reais
+    if balance and "utxos" in balance and len(balance["utxos"]) > 0:
+        inputs = balance["utxos"]
+        outputs = [{
+            "address": address,
+            "value": sum(utxo["value"] for utxo in inputs) - 1000  # Valor menos uma pequena taxa
+        }]
+        tx_data = test_build_transaction(inputs, outputs)
         
-        if not test_address:
-            test_address = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"  # Testnet
-    
-    time.sleep(1)  # Pequena pausa entre as requisições
-    
-    # Testar consulta de saldo e UTXOs
-    balance_data = test_balance_utxos(test_address, network=current_network)
-    
-    time.sleep(1)  # Pequena pausa entre as requisições
-    
-    # Testar estimativa de taxa (RF4.4)
-    fee_data = test_fee_estimation()
-    fee_rate = fee_data.get("fee_rate", 1.0) if fee_data else 1.0
-    
-    # Exemplo de dados para testar construção de transação
-    sample_inputs = [
-        {
-            "txid": "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
-            "vout": 0,
-            "value": 10000000  # 0.1 BTC em satoshis
-        }
-    ]
-    
-    # Obter UTXOs reais se disponíveis
-    real_utxos = balance_data.get("utxos", []) if balance_data else []
-    if real_utxos:
-        print(f"Usando {len(real_utxos)} UTXOs reais para teste de transação")
-        sample_inputs = real_utxos
-    
-    # Usar um endereço para output (de preferência um que foi gerado)
-    output_address = None
-    for addr_format in ["p2wpkh", "p2pkh", "p2sh", "p2tr"]:
-        if addr_format in addresses and "address" in addresses[addr_format]:
-            output_address = addresses[addr_format]["address"]
-            break
-    
-    if not output_address:
-        output_address = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"  # Testnet
-    
-    sample_outputs = [
-        {
-            "address": output_address,
-            "value": 9900000  # 0.099 BTC em satoshis (0.001 BTC para taxa)
-        }
-    ]
-    
-    time.sleep(1)  # Pequena pausa entre as requisições
-    
-    # Testar construção de transação
-    tx_data = test_build_transaction(sample_inputs, sample_outputs, fee_rate=fee_rate)
-    
-    if tx_data:
-        time.sleep(1)  # Pequena pausa entre as requisições
-        
-        # Testar assinatura de transação
-        signed_data = test_transaction_signature(tx_data, private_key)
-        
-        # Usar tx_data para testar a validação se signed_data não estiver disponível
-        tx_hex_to_validate = signed_data.get("signed_tx", tx_data["raw_transaction"]) if signed_data else tx_data["raw_transaction"]
-        
-        time.sleep(1)  # Pequena pausa entre as requisições
-        
-        # Testar validação de transação
-        is_valid = test_transaction_validation({"raw_transaction": tx_hex_to_validate, "txid": tx_data["txid"]})
-        
-        # Não enviar broadcast em ambiente de teste a menos que a validação tenha sido bem-sucedida
-        if is_valid:
-            time.sleep(1)  # Pequena pausa entre as requisições
+        if tx_data and "raw_transaction" in tx_data:
+            # Testar assinatura
+            signed_tx = test_transaction_signature(tx_data, private_key)
             
-            # Testar broadcast de transação simulada (desabilitado por padrão para evitar envios acidentais)
-            # broadcast_data = test_broadcast_transaction(tx_hex_to_validate) 
-            broadcast_data = {"status": "simulated", "txid": tx_data["txid"], "explorer_url": f"https://blockchair.com/bitcoin/testnet/tx/{tx_data['txid']}"}
-            print("ℹ️ Broadcast simulado para evitar envio real de transação")
-            
-            if broadcast_data and "txid" in broadcast_data:
-                time.sleep(1)  # Pequena pausa entre as requisições
+            if signed_tx and "signed_tx" in signed_tx:
+                # Testar validação
+                validation = test_transaction_validation(signed_tx)
                 
-                # Testar consulta de status da transação
-                test_transaction_status(broadcast_data["txid"])
+                # Testar broadcast - COMENTADO para não enviar transações reais durante o teste
+                # broadcast = test_broadcast_transaction(signed_tx.get("signed_tx"))
+                
+                # Testar consulta de status - usando txid existente
+                if "txid" in signed_tx:
+                    test_transaction_status(signed_tx["txid"])
+    else:
+        print("\n⚠️ Sem UTXOs disponíveis para testar construção de transações")
+        print("  Para testar completamente, envie alguns fundos para o endereço gerado.")
+        
+        # Tentar criar uma transação de teste com dados simulados
+        print("\nCriando transação de teste com dados simulados...")
+        inputs = [{
+            "prev_tx": "a" * 64,
+            "output_n": 0,
+            "value": 10000000,
+            "script": "76a914" + "b" * 40 + "88ac"
+        }]
+        outputs = [{
+            "address": address,
+            "value": 9990000
+        }]
+        
+        tx_data = test_build_transaction(inputs, outputs)
+        
+        if tx_data and "raw_transaction" in tx_data:
+            # Testar assinatura - não vai funcionar com dados simulados, mas testa o endpoint
+            test_transaction_signature(tx_data, private_key)
+            
+            # Testar validação
+            test_transaction_validation(tx_data)
+            
+            # Testar consulta de status com um txid conhecido de testnet
+            # Txid de exemplo da testnet
+            test_txid = "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16"
+            test_transaction_status(test_txid)
     
-    # Verificação de requisitos não funcionais
-    print_section("VERIFICAÇÃO DE REQUISITOS NÃO FUNCIONAIS")
-    
-    # RNF1.1: Bibliotecas criptográficas reconhecidas
-    print("✅ RNF1.1: Uso de bitcoinlib para geração de chaves e transações")
-    
-    # RNF3.1: Interface para usuários avançados
-    print("✅ RNF3.1: API REST com endpoints para funcionalidades avançadas")
-    
-    # RNF4.1: Arquivo de configuração
-    print("Verificado parcialmente em Health Check")
-    
-    # RNF5.1: Compatibilidade com Windows e Linux
-    if system in ['Windows', 'Linux']:
-        print(f"✅ RNF5.1: Teste executado com sucesso no {system}")
-    
-    print_section("TESTES CONCLUÍDOS")
+    print("\n" + "=" * 80)
+    print("                  TESTE DE VERIFICAÇÃO CONCLUÍDO")
+    print("=" * 80)
+    print("\n")
 
 if __name__ == "__main__":
     main() 

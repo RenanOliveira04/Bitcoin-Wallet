@@ -1,47 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import keys, addresses, balance, utxo, broadcast, fee, sign, validate, tx
-from app.dependencies import get_network
+from app.dependencies import get_network, setup_logging, get_settings
 import logging
-import logging.config
 
-# Configuração de logging
-logging.config.dictConfig({
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "default": {
-            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        },
-        "json": {
-            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
-            "format": "%(asctime)s %(name)s %(levelname)s %(message)s"
-        }
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "default",
-            "level": "DEBUG"
-        },
-        "file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": "bitcoin-wallet.log",
-            "maxBytes": 10485760,  # 10MB
-            "backupCount": 5,
-            "formatter": "json",
-            "level": "INFO"
-        }
-    },
-    "root": {
-        "handlers": ["console", "file"],
-        "level": "INFO"
-    }
-})
+# Inicializa o logger com as configurações do .env
+logger = setup_logging()
+settings = get_settings()
 
-logger = logging.getLogger(__name__)
-
-app = FastAPI(title="Bitcoin Wallet API", version="1.0.0")
+app = FastAPI(
+    title="Bitcoin Wallet API",
+    version="1.0.0",
+    description="API para gerenciamento de carteiras Bitcoin, suportando diferentes formatos de endereços e operações com transações."
+)
 
 # CORS
 app.add_middleware(
@@ -66,4 +37,33 @@ app.include_router(tx.router, prefix="/api/tx")
 @app.get("/")
 def read_root():
     logger.info("Health check realizado")
-    return {"status": "running", "network": get_network()}
+    return {
+        "status": "running",
+        "network": get_network(),
+        "default_key_type": settings.default_key_type,
+        "version": "1.0.0"
+    }
+
+@app.on_event("startup")
+async def startup_event():
+    """Executado quando a aplicação inicia"""
+    logger.info(f"Iniciando API Bitcoin Wallet na rede {get_network()}")
+    logger.info(f"Tipo de chave padrão: {settings.default_key_type}")
+    
+    # Logar apenas a informação de que as URLs estão configuradas, sem expor os valores
+    if settings.blockchain_api_url:
+        logger.info("Blockchain API URL configurada")
+    else:
+        logger.warning("Blockchain API URL não configurada - usando valor padrão")
+        
+    if settings.mempool_api_url:
+        logger.info("Mempool API URL configurada")
+    else:
+        logger.warning("Mempool API URL não configurada - usando valor padrão")
+        
+    # Verificar configurações de API
+    if settings.api_key:
+        logger.info("API Key configurada")
+    
+    logger.info(f"Nível de log: {settings.log_level}")
+    logger.info(f"Tempo de cache: {settings.cache_timeout} segundos")
