@@ -14,9 +14,31 @@ class BitcoinLibBuilder(TransactionBuilder):
     def build(self, request: TransactionRequest, network: str) -> TransactionResponse:
         logger.info(f"Iniciando construção de transação para rede {network}")
         try:
+            # Converter inputs e outputs para o formato que a bitcoinlib espera
+            formatted_inputs = []
+            for input_tx in request.inputs:
+                formatted_input = {
+                    "txid": input_tx.txid,
+                    "output_n": input_tx.vout,
+                }
+                if input_tx.script:
+                    formatted_input["script"] = input_tx.script
+                if input_tx.value:
+                    formatted_input["value"] = input_tx.value
+                if input_tx.sequence:
+                    formatted_input["sequence"] = input_tx.sequence
+                formatted_inputs.append(formatted_input)
+            
+            formatted_outputs = []
+            for output in request.outputs:
+                formatted_outputs.append({
+                    "address": output.address,
+                    "value": output.value
+                })
+            
             tx = Transaction(
-                inputs=request.inputs,
-                outputs=request.outputs,
+                inputs=formatted_inputs,
+                outputs=formatted_outputs,
                 network=network,
                 fee=request.fee_rate
             )

@@ -1,5 +1,5 @@
 # Bitcoin Wallet API
-
+python test_api.py
 API para gerenciamento de carteiras Bitcoin, suportando diferentes formatos de endereços e geração de chaves.
 
 ## Funcionalidades
