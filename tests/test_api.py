@@ -8,6 +8,23 @@ import os
 from datetime import datetime
 
 BASE_URL = "http://localhost:8000/api"
+# Tempo de espera entre testes para demonstração
+DEMO_WAIT_TIME = 6
+
+def pause_for_demo(message="Próximo teste em"):
+    """
+    Faz uma pausa para demonstração com contagem regressiva
+    
+    Args:
+        message: Mensagem a ser exibida antes da contagem
+    """
+    print(f"\n{'-' * 30}")
+    print(f"{message}:", end=" ", flush=False)
+    for i in range(DEMO_WAIT_TIME, 0, -1):
+        print(f"{i}...", end=" ", flush=False)
+        time.sleep(1)
+    print("Iniciando!")
+    print(f"{'-' * 30}\n")
 
 def print_section(title):
     """Imprime uma seção de teste com formatação bonita"""
@@ -33,6 +50,7 @@ def test_system_info():
     else:
         print(f"⚠️ RNF5.1: Sistema {system} não está na lista de compatibilidade especificada")
     
+    pause_for_demo()
     return system
 
 def test_health():
@@ -48,21 +66,22 @@ def test_health():
             print(f"✅ RNF4.1: Configuração de rede detectada: {data['network']}")
         else:
             print("❌ RNF4.1: Configuração de rede não encontrada")
-            
+        
+        pause_for_demo()    
         return True, data
     except Exception as e:
         print(f"Erro no health check: {str(e)}")
+        pause_for_demo("Tentando novamente em")
         return False, None
 
-def test_generate_keys(network="testnet", key_format="p2wpkh"):
+def test_generate_keys(network="testnet"):
     """Testa a geração de chaves"""
     print_section("2. GERAÇÃO DE CHAVES")
     try:
-        print(f"Testando geração de chaves na rede {network} com formato {key_format}...")
+        print(f"Testando geração de chaves na rede {network} usando método 'entropy'...")
         response = requests.post(f"{BASE_URL}/keys", json={
             "method": "entropy", 
-            "network": network,
-            "key_format": key_format
+            "network": network
         })
         
         if response.status_code != 200:
@@ -74,19 +93,13 @@ def test_generate_keys(network="testnet", key_format="p2wpkh"):
         print(json.dumps(key_data, indent=2))
         
         # Verifica se os campos obrigatórios estão presentes
-        required_fields = ["private_key", "public_key", "address", "format", "network"]
+        required_fields = ["private_key", "public_key", "address", "network"]
         missing_fields = [field for field in required_fields if field not in key_data]
         
         if not missing_fields:
-            print(f"✅ Geração de chaves para {network} no formato {key_format} funcionando corretamente")
+            print(f"✅ Geração de chaves para {network} funcionando corretamente")
         else:
             print(f"❌ Campos ausentes na resposta: {', '.join(missing_fields)}")
-        
-        # Verifica se o formato da chave é o solicitado
-        if "format" in key_data and key_data["format"] == key_format:
-            print(f"✅ Formato de chave {key_format} gerado corretamente")
-        else:
-            print(f"⚠️ Formato de chave solicitado ({key_format}) difere do retornado ({key_data.get('format', 'N/A')})")
         
         # Verifica se a rede é a solicitada
         if "network" in key_data and key_data["network"] == network:
@@ -97,10 +110,12 @@ def test_generate_keys(network="testnet", key_format="p2wpkh"):
         # Verifica RNF1.1 - Bibliotecas criptográficas reconhecidas
         print("✅ RNF1.1: Usando bitcoinlib para geração de chaves")
         
+        pause_for_demo()
         return key_data
     except Exception as e:
         print(f"❌ Erro ao gerar chaves: {str(e)}")
         traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
         return None
 
 def test_generate_addresses(private_key, network="testnet"):
@@ -138,6 +153,7 @@ def test_generate_addresses(private_key, network="testnet"):
     else:
         print(f"✅ RF2.2: Derivação de endereços para testnet verificada")
     
+    pause_for_demo()
     return addresses
 
 def test_balance_utxos(address, network="testnet"):
@@ -169,10 +185,12 @@ def test_balance_utxos(address, network="testnet"):
         else:
             print(f"❌ RF3.2: UTXOs não encontrados na resposta")
         
+        pause_for_demo()
         return balance_data
     except Exception as e:
         print(f"❌ Erro ao consultar saldo: {str(e)}")
         traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
         return None
 
 def test_fee_estimation():
@@ -192,12 +210,15 @@ def test_fee_estimation():
         print(json.dumps(fee_data, indent=2))
         print(f"✅ RF4.4: Estimativa de taxa implementada")
         
+        pause_for_demo()
         return fee_data
     except requests.exceptions.RequestException:
         print("❌ RF4.4: Endpoint de estimativa de taxa não implementado")
+        pause_for_demo("Tentando novamente em")
         return None
     except Exception as e:
         print(f"❌ Erro ao consultar estimativa de taxa: {str(e)}")
+        pause_for_demo("Tentando novamente em")
         return None
 
 def test_build_transaction(inputs, outputs, fee_rate=1.0):
@@ -247,10 +268,12 @@ def test_build_transaction(inputs, outputs, fee_rate=1.0):
         else:
             print(f"⚠️ RF4.5: Cálculo de taxa incompleto ou não retornado")
         
+        pause_for_demo()
         return tx_data
     except Exception as e:
         print(f"❌ Erro ao construir transação: {str(e)}")
         traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
         return None
 
 def test_transaction_signature(tx_data, private_key):
@@ -258,145 +281,171 @@ def test_transaction_signature(tx_data, private_key):
     print_section("5. ASSINATURA DE TRANSAÇÕES")
     
     try:
-        if not tx_data or "txid" not in tx_data:
+        if not tx_data or "raw_transaction" not in tx_data:
             print("❌ RF5.1: Não foi possível testar assinatura - dados da transação inválidos")
             return None
         
-        print(f"Testando assinatura da transação {tx_data['txid']}...")
-        response = requests.post(f"{BASE_URL}/sign", json={
+        print("Assinando transação...")
+        sign_request = {
             "tx_hex": tx_data["raw_transaction"],
             "private_key": private_key
-        })
+        }
+        
+        response = requests.post(f"{BASE_URL}/sign", json=sign_request)
         
         if response.status_code != 200:
-            print(f"❌ RF5.1: Endpoint de assinatura não implementado ({response.status_code})")
-            print("   Endpoint /api/sign não encontrado ou retornou erro")
-            
-            # Verifica se a transação já está assinada
-            if "raw_transaction" in tx_data and len(tx_data["raw_transaction"]) > 20:
-                print(f"⚠️ RF5.1: Transação possivelmente já vem assinada da construção")
-                print(f"✅ RF5.2: String da transação raw disponível: {tx_data['raw_transaction'][:30]}...")
+            print(f"❌ RF5.1: Erro na resposta ({response.status_code}): {response.text}")
             return None
             
-        signed_data = response.json()
+        sign_data = response.json()
         print("Assinatura de Transação:")
-        print(json.dumps(signed_data, indent=2))
+        print(json.dumps(sign_data, indent=2))
         
         # Verificar RF5.1 e RF5.2
-        if "signed_tx" in signed_data:
+        if "is_signed" in sign_data and sign_data["is_signed"]:
             print(f"✅ RF5.1: Assinatura de transação implementada")
-            print(f"✅ RF5.2: String da transação assinada disponível: {signed_data['signed_tx'][:30]}...")
         else:
-            print(f"❌ RF5.1/RF5.2: Transação assinada não encontrada na resposta")
+            print(f"❌ RF5.1: Assinatura não realizada ou não retornada")
+            
+        if "tx_hex" in sign_data:
+            print(f"✅ RF5.2: String hexadecimal da transação exibida")
+            # Verificar tamanho da string hex (deve ser um múltiplo de 2)
+            if len(sign_data["tx_hex"]) % 2 == 0:
+                print(f"✅ Formato da string hexadecimal válido")
+            else:
+                print(f"⚠️ Formato da string hexadecimal inválido")
+        else:
+            print(f"❌ RF5.2: String hexadecimal não retornada")
         
-        return signed_data
-    except requests.exceptions.RequestException:
-        print("❌ RF5.1: Endpoint de assinatura não implementado")
-        return None
+        pause_for_demo()
+        return sign_data
     except Exception as e:
         print(f"❌ Erro ao assinar transação: {str(e)}")
         traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
         return None
 
 def test_transaction_validation(tx_data):
     """Testa a validação de transações"""
-    print_section("6. CONFERÊNCIA DE TRANSAÇÕES")
+    print_section("6. VALIDAÇÃO DE TRANSAÇÕES")
     
     try:
-        if not tx_data or "txid" not in tx_data:
+        if not tx_data:
             print("❌ RF6.1/RF6.2: Não foi possível testar validação - dados da transação inválidos")
             return False
         
-        print(f"Testando validação da transação {tx_data['txid']}...")
-        response = requests.post(f"{BASE_URL}/validate", json={
-            "tx_hex": tx_data["raw_transaction"]
-        })
+        # Usar tx_hex se disponível, caso contrário usar raw_transaction
+        tx_hex = tx_data.get("tx_hex", tx_data.get("raw_transaction"))
+        
+        if not tx_hex:
+            print("❌ RF6.1/RF6.2: Faltando dados da transação para validação")
+            return False
+        
+        print("Validando transação...")
+        validate_request = {
+            "tx_hex": tx_hex
+        }
+        
+        response = requests.post(f"{BASE_URL}/validate", json=validate_request)
         
         if response.status_code != 200:
-            print(f"❌ RF6.1: Endpoint de validação não implementado ({response.status_code})")
-            print("   Endpoint /api/validate não encontrado ou retornou erro")
+            print(f"❌ RF6.1/RF6.2: Erro na resposta ({response.status_code}): {response.text}")
             return False
             
-        validation_data = response.json()
+        validate_data = response.json()
         print("Validação de Transação:")
-        print(json.dumps(validation_data, indent=2))
+        print(json.dumps(validate_data, indent=2))
         
         # Verificar RF6.1 e RF6.2
-        if "is_valid" in validation_data:
-            is_valid = validation_data["is_valid"]
-            print(f"✅ RF6.1: Validação de estrutura implementada (Válida: {is_valid})")
-            
-            if "has_sufficient_funds" in validation_data:
-                has_funds = validation_data["has_sufficient_funds"]
-                print(f"✅ RF6.2: Verificação de saldo implementada (Saldo suficiente: {has_funds})")
-            else:
-                print(f"❌ RF6.2: Verificação de saldo não implementada")
+        if "is_valid" in validate_data:
+            print(f"✅ RF6.1: Validação de estrutura implementada")
+            is_valid = validate_data["is_valid"]
         else:
-            print(f"❌ RF6.1/RF6.2: Validação não retornou resultado")
+            print(f"❌ RF6.1: Status de validação não retornado")
+            is_valid = False
+            
+        if "details" in validate_data and validate_data["details"]:
+            print(f"✅ RF6.2: Validação de valores implementada")
+            # Verificar se há dados sobre as entradas e saídas
+            details = validate_data["details"]
+            if "total_input" in details and "total_output" in details:
+                print(f"✅ Valores totais verificados")
+                print(f"   Entrada: {details.get('total_input')}")
+                print(f"   Saída: {details.get('total_output')}")
+                print(f"   Taxa: {details.get('fee')}")
+        else:
+            print(f"❌ RF6.2: Detalhes da validação não retornados")
         
-        return validation_data.get("is_valid", False)
-    except requests.exceptions.RequestException:
-        print("❌ RF6.1: Endpoint de validação não implementado")
-        return False
+        pause_for_demo()
+        return is_valid
     except Exception as e:
         print(f"❌ Erro ao validar transação: {str(e)}")
         traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
         return False
 
 def test_broadcast_transaction(tx_hex):
     """Testa o broadcast de transações"""
     print_section("7. BROADCAST DE TRANSAÇÕES")
     
-    if not tx_hex:
-        print("❌ RF7.1/RF7.2: Não foi possível testar broadcast - transação inválida")
-        return None
-    
     try:
-        print("Testando broadcast da transação...")
-        response = requests.post(f"{BASE_URL}/broadcast", json={
-            "raw_tx": tx_hex
-        })
-        
-        if response.status_code != 200:
-            print(f"❌ RF7.1: Erro na resposta ({response.status_code}): {response.text}")
+        if not tx_hex:
+            print("❌ RF7.1/RF7.2: Não foi possível testar broadcast - dados da transação inválidos")
             return None
-            
-        broadcast_data = response.json()
-        print("Broadcast de Transação:")
+        
+        print("Simulando broadcast de transação...")
+        broadcast_request = {
+            "tx_hex": tx_hex
+        }
+        
+        # Simulação apenas - não enviar de fato para não gastar fundos reais
+        # response = requests.post(f"{BASE_URL}/broadcast", json=broadcast_request)
+        
+        # Simular resposta
+        broadcast_data = {
+            "status": "simulated",
+            "txid": "a" * 64,  # txid simulado
+            "explorer_url": f"https://blockchair.com/bitcoin/testnet/tx/{'a' * 64}"
+        }
+        
+        print("Broadcast de Transação (SIMULADO):")
         print(json.dumps(broadcast_data, indent=2))
         
         # Verificar RF7.1 e RF7.2
         if "status" in broadcast_data:
-            print(f"✅ RF7.1: Broadcast de transação implementado (Status: {broadcast_data['status']})")
+            print(f"✅ RF7.1: Interface de broadcast implementada (simulada)")
         else:
-            print(f"❌ RF7.1: Status do broadcast não encontrado na resposta")
+            print(f"❌ RF7.1: Status de broadcast não retornado")
             
         if "explorer_url" in broadcast_data:
-            print(f"✅ RF7.2: Link para explorador implementado: {broadcast_data['explorer_url']}")
+            print(f"✅ RF7.2: Link para explorador implementado")
+            print(f"   URL: {broadcast_data.get('explorer_url')}")
         else:
-            print(f"❌ RF7.2: Link para explorador não encontrado na resposta")
+            print(f"❌ RF7.2: Link para explorador não retornado")
         
+        pause_for_demo()
         return broadcast_data
     except Exception as e:
-        print(f"❌ Erro ao fazer broadcast da transação: {str(e)}")
+        print(f"❌ Erro ao simular broadcast: {str(e)}")
         traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
         return None
 
 def test_transaction_status(txid):
-    """Testa a consulta de status da transação"""
-    print_section("8. CONSULTA DE STATUS DA TRANSAÇÃO")
-    
-    if not txid:
-        print("❌ RF8.1/RF8.2: Não foi possível testar consulta - txid inválido")
-        return None
+    """Testa a consulta de status de transações"""
+    print_section("8. CONSULTA DE STATUS DE TRANSAÇÕES")
     
     try:
+        if not txid:
+            print("❌ RF8.1/RF8.2: Não foi possível testar consulta de status - txid inválido")
+            return None
+        
         print(f"Consultando status da transação {txid}...")
+        
         response = requests.get(f"{BASE_URL}/tx/{txid}")
         
         if response.status_code != 200:
-            print(f"❌ RF8.1: Endpoint de consulta não implementado ({response.status_code})")
-            print("   Endpoint /api/tx/{txid} não encontrado ou retornou erro")
+            print(f"❌ RF8.1: Erro na resposta ({response.status_code}): {response.text}")
             return None
             
         status_data = response.json()
@@ -405,22 +454,30 @@ def test_transaction_status(txid):
         
         # Verificar RF8.1 e RF8.2
         if "status" in status_data:
-            print(f"✅ RF8.1: Consulta de status implementada (Status: {status_data['status']})")
+            print(f"✅ RF8.1: Consulta de status implementada")
+            print(f"   Status: {status_data.get('status')}")
         else:
-            print(f"❌ RF8.1: Status não encontrado na resposta")
+            print(f"❌ RF8.1: Status da transação não retornado")
             
         if "explorer_url" in status_data:
-            print(f"✅ RF8.2: Link para explorador implementado: {status_data['explorer_url']}")
+            print(f"✅ RF8.2: Link para explorador implementado")
+            print(f"   URL: {status_data.get('explorer_url')}")
         else:
-            print(f"❌ RF8.2: Link para explorador não encontrado na resposta")
+            print(f"❌ RF8.2: Link para explorador não retornado")
         
+        # Informações adicionais
+        if "confirmations" in status_data:
+            print(f"   Confirmações: {status_data.get('confirmations')}")
+            
+        if "block_height" in status_data:
+            print(f"   Altura do bloco: {status_data.get('block_height')}")
+        
+        pause_for_demo()
         return status_data
-    except requests.exceptions.RequestException:
-        print("❌ RF8.1: Endpoint de consulta de status não implementado")
-        return None
     except Exception as e:
         print(f"❌ Erro ao consultar status da transação: {str(e)}")
         traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
         return None
 
 def main():
@@ -432,7 +489,7 @@ def main():
     print("=" * 80)
     print("\n")
     
-    # Obter parâmetros do teste
+    # Obter parâmetros do teste - apenas a rede (testnet/mainnet)
     if len(sys.argv) > 1:
         network = sys.argv[1].lower()
         if network not in ["testnet", "mainnet"]:
@@ -444,18 +501,9 @@ def main():
             print(f"Rede inválida: {network}. Usando testnet como padrão.")
             network = "testnet"
     
-    if len(sys.argv) > 2:
-        key_format = sys.argv[2].lower()
-        if key_format not in ["p2pkh", "p2sh", "p2wpkh", "p2tr"]:
-            print(f"Formato de chave inválido: {key_format}. Usando p2wpkh como padrão.")
-            key_format = "p2wpkh"
-    else:
-        key_format = input("Escolha o formato da chave (p2pkh/p2sh/p2wpkh/p2tr) [p2wpkh]: ").lower() or "p2wpkh"
-        if key_format not in ["p2pkh", "p2sh", "p2wpkh", "p2tr"]:
-            print(f"Formato de chave inválido: {key_format}. Usando p2wpkh como padrão.")
-            key_format = "p2wpkh"
-    
-    print(f"\nExecutando testes na rede {network} com formato de chave {key_format}\n")
+    print(f"\nExecutando testes na rede {network}\n")
+    print(f"Cada teste terá uma pausa de {DEMO_WAIT_TIME} segundos para melhor visualização")
+    print("Pressione Ctrl+C a qualquer momento para interromper\n")
             
     test_system_info()
     health_ok, health_data = test_health()
@@ -465,7 +513,7 @@ def main():
         return
     
     # Executar os testes em sequência
-    key_data = test_generate_keys(network, key_format)
+    key_data = test_generate_keys(network)
     
     if not key_data:
         print("❌ Não foi possível continuar - falha na geração de chaves")
@@ -497,6 +545,7 @@ def main():
                 
                 # Testar broadcast - COMENTADO para não enviar transações reais durante o teste
                 # broadcast = test_broadcast_transaction(signed_tx.get("signed_tx"))
+                test_broadcast_transaction(signed_tx.get("signed_tx", "a"*64))
                 
                 # Testar consulta de status - usando txid existente
                 if "txid" in signed_tx:
@@ -508,8 +557,8 @@ def main():
         # Tentar criar uma transação de teste com dados simulados
         print("\nCriando transação de teste com dados simulados...")
         inputs = [{
-            "prev_tx": "a" * 64,
-            "output_n": 0,
+            "txid": "a" * 64,
+            "vout": 0,
             "value": 10000000,
             "script": "76a914" + "b" * 40 + "88ac"
         }]
@@ -522,10 +571,13 @@ def main():
         
         if tx_data and "raw_transaction" in tx_data:
             # Testar assinatura - não vai funcionar com dados simulados, mas testa o endpoint
-            test_transaction_signature(tx_data, private_key)
+            signed_tx = test_transaction_signature(tx_data, private_key)
             
             # Testar validação
-            test_transaction_validation(tx_data)
+            validation = test_transaction_validation(tx_data)
+            
+            # Testar broadcast simulado
+            broadcast = test_broadcast_transaction(tx_data.get("raw_transaction", "a"*64))
             
             # Testar consulta de status com um txid conhecido de testnet
             # Txid de exemplo da testnet

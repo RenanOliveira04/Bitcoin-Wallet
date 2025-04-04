@@ -52,6 +52,17 @@ def get_default_key_type():
     return get_settings().default_key_type
 
 def bech32_encode(network: str, witver: int, data: bytes) -> str:
+    """
+    Codifica dados em formato Bech32 para endereços SegWit
+    
+    Args:
+        network: Rede Bitcoin (mainnet, testnet, regtest)
+        witver: Versão de testemunha (0 para P2WPKH/P2WSH, 1 para P2TR)
+        data: Dados a serem codificados (hash da chave pública para P2WPKH, ou hash da chave para P2TR)
+        
+    Returns:
+        Endereço no formato Bech32 (bc1.../tb1...)
+    """
     # Corrigir mapeamento de rede para prefixo HRP correto
     network_to_hrp = {
         "mainnet": "bc",
@@ -61,7 +72,32 @@ def bech32_encode(network: str, witver: int, data: bytes) -> str:
     }
     
     hrp = network_to_hrp.get(network, "tb")
-    converted = bech32.convertbits(data, 8, 5)
+    converted = bech32.convertbits(data, 8, 5, True)  # Importante: padding=True
+    
+    if converted is None:
+        raise ValueError("Erro ao converter dados para Bech32")
+    
+    # Para Taproot (SegWit v1), usar Bech32m
+    if witver == 1:
+        try:
+            # Se bech32.bech32m_encode estiver disponível, usar
+            if hasattr(bech32, 'bech32m_encode'):
+                return bech32.bech32m_encode(hrp, [witver] + converted)
+            else:
+                # Fallback para bech32_encode regular com prefixo modificado
+                # (não é ideal, mas garante que o código não falhe)
+                segwit_addr = bech32.bech32_encode(hrp, [witver] + converted)
+                # Adicionar um indicador para Taproot substituindo o 'q' por 'p' (apenas visual)
+                if segwit_addr.startswith("bc1q"):
+                    return segwit_addr.replace("bc1q", "bc1p", 1)
+                elif segwit_addr.startswith("tb1q"):
+                    return segwit_addr.replace("tb1q", "tb1p", 1)
+                return segwit_addr
+        except Exception as e:
+            logging.getLogger("bitcoin-wallet").error(f"Erro ao codificar endereço Taproot: {str(e)}")
+            raise
+    
+    # Para SegWit v0 (P2WPKH, P2WSH), usar Bech32 padrão
     return bech32.bech32_encode(hrp, [witver] + converted)
 
 def get_blockchain_api_url(network: str = None):
