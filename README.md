@@ -1,5 +1,5 @@
 # Bitcoin Wallet API
-python test_api.py
+
 API para gerenciamento de carteiras Bitcoin, suportando diferentes formatos de endereços e geração de chaves.
 
 ## Funcionalidades
@@ -8,6 +8,11 @@ API para gerenciamento de carteiras Bitcoin, suportando diferentes formatos de e
 - Geração de endereços em diferentes formatos
 - Consulta de saldo e UTXOs
 - Construção de transações
+- Estimativa de taxas baseada em condições da mempool
+- Assinatura de transações
+- Validação de transações
+- Broadcast de transações
+- Consulta de status de transações
 
 ## Requisitos
 
@@ -18,7 +23,7 @@ API para gerenciamento de carteiras Bitcoin, suportando diferentes formatos de e
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/bitcoin-wallet.git
+git clone https://github.com/RenanOliveira04/bitcoin-wallet.git
 cd bitcoin-wallet
 ```
 
@@ -159,6 +164,34 @@ Exemplo de requisição:
 curl "http://localhost:8000/api/balance/tb1p..."
 ```
 
+### Estimativa de Taxa
+
+```bash
+GET /api/fee/estimate
+```
+
+Estima a taxa ideal para transações com base nas condições atuais da mempool do Bitcoin.
+
+#### Parâmetros:
+
+- `priority` (opcional): Prioridade da transação (low, medium, high)
+- `network` (opcional): Rede Bitcoin (mainnet ou testnet)
+
+#### Exemplo de Requisição:
+```bash
+curl "http://localhost:8000/api/fee/estimate?priority=medium&network=testnet"
+```
+
+#### Resposta:
+```json
+{
+  "fee_rate": 10.5,
+  "priority": "medium",
+  "unit": "sat/vB",
+  "estimated_confirmation_time": "10-20 minutos"
+}
+```
+
 ### Construção de Transações
 
 ```bash
@@ -190,12 +223,115 @@ curl -X POST http://localhost:8000/api/utxo \
 }'
 ```
 
+### Assinatura de Transações
+
+```bash
+POST /api/sign
+```
+
+Assina uma transação com a chave privada fornecida.
+
+#### Parâmetros (JSON):
+
+- `tx_hex`: String hexadecimal da transação não assinada
+- `private_key`: Chave privada para assinar
+- `network` (opcional): Rede Bitcoin (mainnet ou testnet)
+
+#### Exemplo de Requisição:
+```bash
+curl -X POST http://localhost:8000/api/sign \
+-H "Content-Type: application/json" \
+-d '{
+  "tx_hex": "0200000001abcdef...",
+  "private_key": "SUA_CHAVE_PRIVADA",
+  "network": "testnet"
+}'
+```
+
+#### Resposta:
+```json
+{
+  "tx_hex": "0200000001abcdef...",
+  "tx_hash": "1a2b3c4d...",
+  "is_signed": true
+}
+```
+
+### Validação de Transações
+
+```bash
+POST /api/validate
+```
+
+Valida a estrutura e os valores de uma transação Bitcoin.
+
+#### Parâmetros (JSON):
+
+- `tx_hex`: String hexadecimal da transação
+- `network` (opcional): Rede Bitcoin (mainnet ou testnet)
+
+#### Exemplo de Requisição:
+```bash
+curl -X POST http://localhost:8000/api/validate \
+-H "Content-Type: application/json" \
+-d '{
+  "tx_hex": "0200000001abcdef...",
+  "network": "testnet"
+}'
+```
+
+#### Resposta:
+```json
+{
+  "is_valid": true,
+  "details": {
+    "inputs_count": 1,
+    "outputs_count": 2,
+    "total_input": 1000000,
+    "total_output": 990000,
+    "fee": 10000
+  }
+}
+```
+
+### Consulta de Status de Transações
+
+```bash
+GET /api/tx/{txid}
+```
+
+Verifica o status atual de uma transação na blockchain.
+
+#### Parâmetros:
+
+- `txid`: ID da transação
+- `network` (opcional): Rede Bitcoin (mainnet ou testnet)
+
+#### Exemplo de Requisição:
+```bash
+curl "http://localhost:8000/api/tx/1a2b3c4d...?network=testnet"
+```
+
+#### Resposta:
+```json
+{
+  "txid": "1a2b3c4d...",
+  "status": "confirmed",
+  "confirmations": 6,
+  "block_height": 800000,
+  "block_hash": "000000...",
+  "timestamp": "2023-04-01T12:00:00Z",
+  "explorer_url": "https://blockstream.info/testnet/tx/1a2b3c4d..."
+}
+```
+
 ## Configuração
 
 A aplicação pode ser configurada através de variáveis de ambiente ou arquivo `.env`:
 
 - `NETWORK`: Rede Bitcoin (mainnet ou testnet)
 - `BLOCKCHAIN_API_URL`: URL da API de blockchain
+- `MEMPOOL_API_URL`: URL da API Mempool.space para estimativa de taxa
 
 ## Dependências Principais
 
@@ -204,6 +340,7 @@ A aplicação pode ser configurada através de variáveis de ambiente ou arquivo
 - `bech32`: Biblioteca para codificação Bech32
 - `pydantic`: Validação de dados
 - `uvicorn`: Servidor ASGI
+- `requests`: Cliente HTTP para APIs externas
 
 ## Contribuição
 
