@@ -17,13 +17,11 @@ def get_balance(address: str, network: str) -> dict:
             response.raise_for_status()
             data = response.json()
             
-            # Transformar para o formato padrão
             return {
                 "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
                 "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
             }
         else:
-            # Para mainnet, usamos a API original
             url = f"{get_blockchain_api_url(network)}/address/{address}/balance"
             response = requests.get(url)
             response.raise_for_status()
@@ -31,7 +29,6 @@ def get_balance(address: str, network: str) -> dict:
     except requests.exceptions.RequestException as e:
         logger.error(f"Erro ao consultar saldo: {str(e)}")
         
-        # Retornar dados simulados para fins de demonstração
         dummy_data = {"confirmed": 0, "unconfirmed": 0}
         logger.warning(f"Retornando dados simulados: {dummy_data}")
         return dummy_data
@@ -61,7 +58,6 @@ def get_utxos(address: str, network: str) -> list:
                 })
             return result
         else:
-            # Para mainnet, usamos a API original
             url = f"{get_blockchain_api_url(network)}/address/{address}/utxo"
             response = requests.get(url)
             response.raise_for_status()
@@ -69,7 +65,6 @@ def get_utxos(address: str, network: str) -> list:
     except requests.exceptions.RequestException as e:
         logger.error(f"Erro ao consultar UTXOs: {str(e)}")
         
-        # Retornar dados simulados para fins de demonstração
         dummy_data = []
         logger.warning(f"Retornando dados simulados: {dummy_data}")
         return dummy_data

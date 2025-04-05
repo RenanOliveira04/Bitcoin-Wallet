@@ -7,25 +7,21 @@ import os
 from typing import Optional
 
 class Settings(BaseSettings):
-    # Configurações básicas com valores padrão não sensíveis
     network: str = "testnet"
     log_level: str = "INFO"
     log_file: str = "bitcoin-wallet.log"
     cache_timeout: int = 300
     default_key_type: str = "p2wpkh"
     
-    # Configurações sensíveis sem valores padrão
     blockchain_api_url: Optional[str] = None
     mempool_api_url: Optional[str] = None
     
-    # Configurações secretas (podem ser adicionadas no futuro)
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-        # Esconder configurações sensíveis na saída dos logs e representação de string
         secrets = ["blockchain_api_url", "mempool_api_url", "api_key", "api_secret"]
 
 # Não é necessário adicionar redes manualmente, apenas fazer o mapeamento correto
@@ -33,10 +29,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings():
-    # Iniciar com valores padrão seguros
     settings = Settings()
     
-    # Definir URLs padrão apenas se não estiverem definidas no .env
     if not settings.blockchain_api_url:
         settings.blockchain_api_url = "https://api.blockchair.com/bitcoin"
         
@@ -63,7 +57,6 @@ def bech32_encode(network: str, witver: int, data: bytes) -> str:
     Returns:
         Endereço no formato Bech32 (bc1.../tb1...)
     """
-    # Corrigir mapeamento de rede para prefixo HRP correto
     network_to_hrp = {
         "mainnet": "bc",
         "bitcoin": "bc",
@@ -77,10 +70,8 @@ def bech32_encode(network: str, witver: int, data: bytes) -> str:
     if converted is None:
         raise ValueError("Erro ao converter dados para Bech32")
     
-    # Para Taproot (SegWit v1), usar Bech32m
     if witver == 1:
         try:
-            # Se bech32.bech32m_encode estiver disponível, usar
             if hasattr(bech32, 'bech32m_encode'):
                 return bech32.bech32m_encode(hrp, [witver] + converted)
             else:
@@ -103,7 +94,6 @@ def bech32_encode(network: str, witver: int, data: bytes) -> str:
 def get_blockchain_api_url(network: str = None):
     if not network:
         network = get_network()
-    # Corrigir mapeamento de nomes de rede
     if network == "mainnet":
         network = "bitcoin"
     return f"{get_settings().blockchain_api_url}/{network}"
@@ -114,7 +104,6 @@ def get_mempool_api_url(network: str = None):
     
     base_url = get_settings().mempool_api_url
     
-    # Ajusta URL para testnet, se necessário
     if network == "testnet":
         return f"{base_url}/testnet"
     

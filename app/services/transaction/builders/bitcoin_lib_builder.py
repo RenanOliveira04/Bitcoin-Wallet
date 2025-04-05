@@ -14,7 +14,6 @@ class BitcoinLibBuilder(TransactionBuilder):
     def build(self, request: TransactionRequest, network: str) -> TransactionResponse:
         logger.info(f"Iniciando construção de transação para rede {network}")
         try:
-            # Converter inputs e outputs para o formato que a bitcoinlib espera
             formatted_inputs = []
             for input_tx in request.inputs:
                 formatted_input = {

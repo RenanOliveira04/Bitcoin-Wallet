@@ -8,7 +8,6 @@ class Input(BaseModel):
     value: Optional[int] = None
     sequence: Optional[int] = None
     
-    # Serializer para compatibilidade com bitcoinlib
     @field_serializer('vout')
     def serialize_vout(self, vout: int) -> Union[int, str]:
         return vout
@@ -23,7 +22,6 @@ class Output(BaseModel):
     address: str
     value: int
     
-    # Serializer para compatibilidade com bitcoinlib
     @field_serializer('value')
     def serialize_value(self, value: int) -> Union[int, str]:
         return value
@@ -33,7 +31,6 @@ class TransactionRequest(BaseModel):
     outputs: List[Output] 
     fee_rate: Optional[float] = None 
     
-    # Método para converter para o formato esperado pela bitcoinlib
     def to_bitcoinlib_format(self) -> Dict[str, Any]:
         formatted_inputs = []
         for input_tx in self.inputs:

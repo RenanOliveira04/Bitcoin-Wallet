@@ -18,7 +18,6 @@ def get_transaction_status(txid: str, network: str = "testnet") -> Dict[str, Any
     try:
         logger.info(f"Consultando status da transação {txid} na rede {network}")
         
-        # API apropriada com base na rede
         if network == "mainnet":
             api_url = f"https://blockstream.info/api/tx/{txid}"
             explorer_url = f"https://blockstream.info/tx/{txid}"
@@ -26,10 +25,8 @@ def get_transaction_status(txid: str, network: str = "testnet") -> Dict[str, Any
             api_url = f"https://blockstream.info/testnet/api/tx/{txid}"
             explorer_url = f"https://blockstream.info/testnet/tx/{txid}"
         
-        # Fazer a requisição para a API
         response = requests.get(api_url, timeout=10)
         
-        # Se a transação não for encontrada
         if response.status_code == 404:
             logger.info(f"Transação {txid} não encontrada na blockchain")
             return {
@@ -40,23 +37,19 @@ def get_transaction_status(txid: str, network: str = "testnet") -> Dict[str, Any
                 "explorer_url": explorer_url
             }
         
-        # Se outro erro ocorrer
         response.raise_for_status()
         
-        # Analisar o resultado
         tx_data = response.json()
         
         confirmations = tx_data.get("status", {}).get("confirmed", False)
         block_height = tx_data.get("status", {}).get("block_height")
         block_time = tx_data.get("status", {}).get("block_time")
         
-        # Determinar o status
         if confirmations:
             status = "confirmed"
         else:
             status = "mempool"
         
-        # Construir a resposta
         result = {
             "txid": txid,
             "status": status,
@@ -72,7 +65,6 @@ def get_transaction_status(txid: str, network: str = "testnet") -> Dict[str, Any
         return result
     except Exception as e:
         logger.error(f"Erro ao consultar status da transação: {str(e)}", exc_info=True)
-        # Retornar resposta simulada para evitar falha total
         return _fallback_status(txid, network, str(e))
 
 def _fallback_status(txid: str, network: str, error: str) -> Dict[str, Any]:

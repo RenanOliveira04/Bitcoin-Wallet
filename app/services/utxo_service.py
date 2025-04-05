@@ -20,14 +20,11 @@ def build_transaction(request: TransactionRequest, network: str) -> TransactionR
         logger.info(f"Iniciando construção de transação para rede {network}")
         logger.debug(f"Inputs: {len(request.inputs)}, Outputs: {len(request.outputs)}")
         
-        # Criar nova transação
         tx = Transaction(network=network)
         
-        # Adicionar os inputs manualmente
         for i, input_tx in enumerate(request.inputs):
             logger.debug(f"Adicionando input {i}: txid={input_tx.txid}, vout={input_tx.vout}")
             try:
-                # Adicionar input com os parâmetros obrigatórios
                 tx.add_input(
                     prev_txid=input_tx.txid,
                     output_n=input_tx.vout,
@@ -38,7 +35,6 @@ def build_transaction(request: TransactionRequest, network: str) -> TransactionR
                 logger.error(f"Erro ao adicionar input {i}: {str(e)}")
                 raise ValueError(f"Erro no input {i}: {str(e)}")
         
-        # Adicionar outputs
         for i, output in enumerate(request.outputs):
             logger.debug(f"Adicionando output {i}: address={output.address}, value={output.value}")
             try:
@@ -51,12 +47,10 @@ def build_transaction(request: TransactionRequest, network: str) -> TransactionR
                 logger.error(f"Erro ao adicionar output {i}: {str(e)}")
                 raise ValueError(f"Erro no output {i}: {str(e)}")
         
-        # Definir taxa
         if request.fee_rate:
             logger.debug(f"Definindo taxa: {request.fee_rate} sat/vB")
             tx.fee = request.fee_rate
         
-        # Calcular a taxa com base nos inputs e outputs
         fee = sum(inp.value or 0 for inp in request.inputs) - sum(out.value for out in request.outputs)
         fee = max(0, fee)  # Evitar valores negativos
         

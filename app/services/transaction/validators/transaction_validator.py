@@ -13,7 +13,6 @@ class TransactionValidator:
             logger.error("Inputs vazios")
             raise HTTPException(status_code=400, detail="Inputs não podem estar vazios")
         
-        # As validações de campos já são feitas pelo Pydantic
         for i, input_tx in enumerate(inputs):
             logger.debug(f"Input {i} validado: txid={input_tx.txid}, vout={input_tx.vout}")
 
@@ -24,11 +23,9 @@ class TransactionValidator:
             logger.error("Outputs vazios")
             raise HTTPException(status_code=400, detail="Outputs não podem estar vazios")
         
-        # As validações de campos já são feitas pelo Pydantic
         for i, output in enumerate(outputs):
             logger.debug(f"Output {i} validado: address={output.address}, value={output.value}")
             
-        # Validação adicional: verificar se o valor é positivo
         for output in outputs:
             if output.value <= 0:
                 logger.error(f"Valor de output inválido: {output.value}")

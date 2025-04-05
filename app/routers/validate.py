@@ -12,7 +12,82 @@ class ValidateRequest(BaseModel):
     tx_hex: str
     network: str = None
 
-@router.post("/")
+@router.post("/", 
+            summary="Valida uma transação Bitcoin",
+            description="""
+Valida uma transação Bitcoin verificando sua estrutura, assinaturas e balanço de entrada/saída.
+
+## O que é validado:
+
+1. **Estrutura da Transação**:
+   * Formato correto dos campos
+   * Versão compatível 
+   * Campos obrigatórios presentes
+
+2. **Assinaturas**:
+   * Verificação criptográfica das assinaturas (se presentes)
+   * Correspondência entre chaves públicas e assinaturas
+
+3. **Balanço de Valores**:
+   * Total de entradas ≥ Total de saídas
+   * Taxa de transação (diferença entre entradas e saídas) é razoável
+
+4. **Conformidade com Regras**:
+   * Tamanho dentro dos limites permitidos
+   * Formatos de script válidos
+   * Valores não negativos
+
+## Parâmetros:
+
+* **tx_hex**: Transação em formato hexadecimal (assinada ou não assinada)
+* **network**: Rede Bitcoin (mainnet ou testnet)
+
+## Exemplo de resposta para transação válida:
+```json
+{
+  "is_valid": true,
+  "details": {
+    "version": 2,
+    "locktime": 0,
+    "inputs_count": 1,
+    "outputs_count": 2,
+    "total_input": 50000,
+    "total_output": 49000,
+    "fee": 1000,
+    "is_signed": true,
+    "estimated_size": 225,
+    "estimated_fee_rate": 4.44
+  }
+}
+```
+
+## Exemplo de resposta para transação inválida:
+```json
+{
+  "is_valid": false,
+  "issues": [
+    "Entrada insuficiente para cobrir saída: faltam 5000 satoshis",
+    "Assinatura inválida na entrada 0"
+  ],
+  "details": {
+    "version": 2,
+    "inputs_count": 1,
+    "outputs_count": 1,
+    "total_input": 10000,
+    "total_output": 15000,
+    "fee": -5000,
+    "is_signed": true
+  }
+}
+```
+
+## Observações:
+
+* Uma transação pode ser estruturalmente válida mas ter assinaturas inválidas
+* A validação não verifica se os UTXOs realmente existem na blockchain
+* Uma transação "válida" localmente pode ser rejeitada pela rede por outras razões
+            """,
+            response_description="Resultado da validação da transação com detalhes")
 def validate_tx(request: ValidateRequest):
     """
     Valida uma transação Bitcoin.
@@ -24,10 +99,8 @@ def validate_tx(request: ValidateRequest):
     e se há saldo suficiente.
     """
     try:
-        # Se a rede não for fornecida, usar a configuração global
         network = request.network or get_network()
         
-        # Validar a transação
         result = validate_transaction(
             tx_hex=request.tx_hex,
             network=network

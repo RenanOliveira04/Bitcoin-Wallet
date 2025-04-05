@@ -19,7 +19,6 @@ def validate_transaction(tx_hex: str, network: str = "testnet") -> Dict[str, Any
     try:
         logger.info(f"Iniciando validação de transação na rede {network}")
         
-        # Verificações de estrutura
         is_valid, structure_issues = validate_structure(tx_hex)
         
         if not is_valid:
@@ -31,13 +30,10 @@ def validate_transaction(tx_hex: str, network: str = "testnet") -> Dict[str, Any
                 "tx_details": None
             }
         
-        # Carregar a transação
         tx = Transaction.parse_hex(tx_hex)
         
-        # Verificar inputs e fundos
         has_funds, fund_issues, input_sum, output_sum = validate_funds(tx, network)
         
-        # Detalhes da transação
         tx_details = {
             "txid": tx.txid,
             "version": tx.version,
@@ -82,30 +78,24 @@ def validate_structure(tx_hex: str) -> Tuple[bool, List[str]]:
     issues = []
     
     try:
-        # Verificar se o hex é válido
         if not all(c in '0123456789abcdefABCDEF' for c in tx_hex):
             issues.append("Formato hexadecimal inválido")
             return False, issues
         
-        # Verificar comprimento mínimo
         if len(tx_hex) < 20:
             issues.append("Transação muito curta")
             return False, issues
         
-        # Tentar parser a transação
         tx = Transaction.parse_hex(tx_hex)
         
-        # Verificar se há inputs
         if not tx.inputs or len(tx.inputs) == 0:
             issues.append("Transação não tem inputs")
             return False, issues
         
-        # Verificar se há outputs
         if not tx.outputs or len(tx.outputs) == 0:
             issues.append("Transação não tem outputs")
             return False, issues
         
-        # Mais verificações de estrutura podem ser adicionadas aqui
         
         return True, []
     
@@ -129,23 +119,19 @@ def validate_funds(tx: Transaction, network: str) -> Tuple[bool, List[str], int,
     output_sum = 0
     
     try:
-        # Calcular soma de saídas
         for output in tx.outputs:
             output_sum += output.value
         
-        # Verificar inputs
         for i, tx_input in enumerate(tx.inputs):
             if not hasattr(tx_input, 'prev_txid') or not tx_input.prev_txid:
                 issues.append(f"Input {i} não tem TXID anterior")
                 continue
                 
-            # Tentar obter UTXOs para o endereço de input
             address = tx_input.address if hasattr(tx_input, 'address') and tx_input.address else None
             
             if address:
                 utxos = get_utxos(address, network)
                 
-                # Verificar se o UTXO existe e tem fundos suficientes
                 utxo_found = False
                 for utxo in utxos:
                     if utxo.get('txid') == tx_input.prev_txid and utxo.get('vout') == tx_input.output_n:
@@ -156,17 +142,14 @@ def validate_funds(tx: Transaction, network: str) -> Tuple[bool, List[str], int,
                 if not utxo_found:
                     issues.append(f"UTXO não encontrado: {tx_input.prev_txid}:{tx_input.output_n}")
             else:
-                # Se não temos o endereço, usar o valor do input se disponível
                 if hasattr(tx_input, 'value') and tx_input.value:
                     input_sum += tx_input.value
                 else:
                     issues.append(f"Input {i} não tem valor definido e endereço não disponível")
         
-        # Se não conseguimos verificar nenhum input, considerar saldo insuficiente
         if input_sum == 0:
             return False, ["Não foi possível verificar os valores dos inputs"], 0, output_sum
         
-        # Verificar se inputs >= outputs
         has_sufficient_funds = input_sum >= output_sum
         
         if not has_sufficient_funds:

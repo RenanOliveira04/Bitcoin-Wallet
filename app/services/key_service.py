@@ -14,7 +14,6 @@ def generate_keys(request: KeyRequest) -> KeyResponse:
     try:
         network = request.network
         
-        # Correção para bitcoinlib reconhecer a rede
         if network == "mainnet":
             bitcoinlib_network = "bitcoin"
         else:
@@ -23,14 +22,12 @@ def generate_keys(request: KeyRequest) -> KeyResponse:
         logger.info(f"Gerando chave na rede {network} usando método {request.method}")
         
         if request.method == "entropy":
-            # Gerar nova chave aleatória
             hdwallet = HDKey(network=bitcoinlib_network)
             derivation_path = None
             mnemonic = None
             logger.info("Nova chave gerada por entropia")
             
         elif request.method == "bip39":
-            # Se não forneceu mnemônico, gerar um novo
             if not request.mnemonic:
                 request.mnemonic = generate_mnemonic()
                 logger.info("Novo mnemônico BIP39 gerado")
@@ -44,17 +41,14 @@ def generate_keys(request: KeyRequest) -> KeyResponse:
             logger.info("Chave gerada a partir do mnemônico BIP39")
             
         elif request.method == "bip32":
-            # Se não forneceu mnemônico, gerar um novo
             if not request.mnemonic:
                 request.mnemonic = generate_mnemonic()
                 logger.info("Novo mnemônico BIP32 gerado")
             
-            # Criar chave mestra a partir do mnemônico
             master_key = HDKey.from_seed(
                 seed=Mnemonic().to_seed(request.mnemonic, password=request.password),
                 network=bitcoinlib_network
             )
-            # Derivar nova chave do caminho especificado
             hdwallet = master_key.subkey_for_path(request.derivation_path)
             derivation_path = request.derivation_path
             mnemonic = request.mnemonic
@@ -62,7 +56,6 @@ def generate_keys(request: KeyRequest) -> KeyResponse:
         else:
             raise ValueError(f"Método de geração de chave inválido: {request.method}")
         
-        # Gerar endereço padrão P2PKH (legacy)
         address = hdwallet.address()
         logger.info(f"Endereço P2PKH gerado: {address}")
         

@@ -31,7 +31,6 @@ def get_key_from_private(private_key: str, network: str) -> Tuple[Key, str]:
     Returns:
         Tupla com (instância Key, rede bitcoinlib)
     """
-    # Correção para bitcoinlib reconhecer a rede
     bitcoinlib_network = "bitcoin" if network == "mainnet" else network
     
     try:
@@ -74,7 +73,6 @@ def generate_p2sh_address(private_key: str, network: str) -> str:
     """
     key, _ = get_key_from_private(private_key, network)
     try:
-        # Verificar se o método address_p2sh existe
         if hasattr(key, 'address_p2sh'):
             address = key.address_p2sh()
         else:
@@ -100,16 +98,13 @@ def generate_p2wpkh_address(private_key: str, network: str) -> str:
     """
     key, _ = get_key_from_private(private_key, network)
     try:
-        # Primeiro tenta usar o método nativo da biblioteca
         if hasattr(key, 'segwit_address'):
             address = key.segwit_address()
         elif hasattr(key, 'address_segwit'):
             address = key.address_segwit()
         elif hasattr(key, 'address'):
-            # Fallback: tentar script_type
             address = key.address(script_type='p2wpkh')
         else:
-            # Implementação manual
             public_key_bytes = key.public_byte
             pubkey_hash = hash160(public_key_bytes)
             address = bech32_encode(network, 0, pubkey_hash)
@@ -133,21 +128,17 @@ def generate_p2tr_address(private_key: str, network: str) -> str:
     """
     key, _ = get_key_from_private(private_key, network)
     try:
-        # Primeiro tenta usar o método nativo da biblioteca
         if hasattr(key, 'address_taproot'):
             address = key.address_taproot()
         elif hasattr(key, 'address'):
-            # Fallback: tentar script_type
             try:
                 address = key.address(script_type='p2tr')
             except:
-                # Implementação manual
                 public_key_bytes = key.public_byte
                 # Para Taproot, precisamos do x-only public key (sem o primeiro byte)
                 x_only_pubkey = public_key_bytes[1:] if len(public_key_bytes) > 32 else public_key_bytes
                 address = bech32_encode(network, 1, x_only_pubkey)
         else:
-            # Implementação manual
             public_key_bytes = key.public_byte
             x_only_pubkey = public_key_bytes[1:] if len(public_key_bytes) > 32 else public_key_bytes
             address = bech32_encode(network, 1, x_only_pubkey)

@@ -29,16 +29,13 @@ class FeeEstimator:
             Dicionário com estimativas de taxas para diferentes prioridades
         """
         try:
-            # Verificar se podemos usar o cache
             if self._is_cache_valid():
                 logger.debug("Usando cache de taxas")
                 return self.fee_cache
             
             if network == "mainnet":
-                # Mempool.space API - uma das mais confiáveis para dados de taxa
                 url = "https://mempool.space/api/v1/fees/recommended"
             else:
-                # API para testnet
                 url = "https://mempool.space/testnet/api/v1/fees/recommended"
             
             logger.info(f"Consultando taxas da mempool para rede {network}")
@@ -47,24 +44,21 @@ class FeeEstimator:
             
             fee_data = response.json()
             
-            # Formatar a resposta
             result = {
-                "fee_rate": fee_data.get("hourFee", 5),  # Taxa média (confirmação em ~1 hora)
-                "high_priority": fee_data.get("fastestFee", 10),  # Confirmação rápida
-                "medium_priority": fee_data.get("halfHourFee", 5),  # Confirmação em ~30 minutos
-                "low_priority": fee_data.get("economyFee", 1),  # Confirmação econômica
+                "fee_rate": fee_data.get("hourFee", 5), 
+                "high_priority": fee_data.get("fastestFee", 10),  
+                "medium_priority": fee_data.get("halfHourFee", 5),  
+                "low_priority": fee_data.get("economyFee", 1),  
                 "timestamp": int(time.time()),
                 "unit": "sat/vB"
             }
             
-            # Atualizar o cache
             self.fee_cache = result
             self.cache_time = time.time()
             
             return result
         except Exception as e:
             logger.error(f"Erro ao obter taxas da mempool: {str(e)}", exc_info=True)
-            # Em caso de erro, fornecer taxas simuladas
             return self._fallback_estimation(network)
     
     def _fallback_estimation(self, network: str) -> Dict[str, Any]:

@@ -8,7 +8,6 @@ import os
 from datetime import datetime
 
 BASE_URL = "http://localhost:8000/api"
-# Tempo de espera entre testes para demonstracao
 DEMO_WAIT_TIME = 6
 
 def pause_for_demo(message="Proximo teste em"):
@@ -44,7 +43,6 @@ def test_system_info():
     print(f"Python: {python_version}")
     print(f"Data e Hora: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Verifica RNF5.1 - Compatibilidade com Windows e Linux
     if system in ['Windows', 'Linux']:
         print(f"✅ RNF5.1: Compativel com {system}")
     else:
@@ -61,7 +59,6 @@ def test_health():
         print("Health Check:")
         print(json.dumps(data, indent=2))
         
-        # Verifica se a configuração de rede está disponível (requisito RNF4.1)
         if "network" in data:
             print(f"✅ RNF4.1: Configuracao de rede detectada: {data['network']}")
         else:
@@ -74,13 +71,13 @@ def test_health():
         pause_for_demo("Tentando novamente em")
         return False, None
 
-def test_generate_keys(network="testnet"):
+def test_generate_keys(network="testnet", key_type="entropy"):
     """Testa a geracao de chaves"""
     print_section("2. GERACAO DE CHAVES")
     try:
-        print(f"Testando geracao de chaves na rede {network} usando metodo 'entropy'...")
+        print(f"Testando geracao de chaves na rede {network} usando metodo '{key_type}'...")
         response = requests.post(f"{BASE_URL}/keys", json={
-            "method": "entropy", 
+            "method": key_type, 
             "network": network
         })
         
@@ -92,7 +89,6 @@ def test_generate_keys(network="testnet"):
         key_data = response.json()
         print(json.dumps(key_data, indent=2))
         
-        # Verifica se os campos obrigatorios estao presentes
         required_fields = ["private_key", "public_key", "address", "network"]
         missing_fields = [field for field in required_fields if field not in key_data]
         
@@ -101,13 +97,11 @@ def test_generate_keys(network="testnet"):
         else:
             print(f"❌ Campos ausentes na resposta: {', '.join(missing_fields)}")
         
-        # Verifica se a rede e a solicitada
         if "network" in key_data and key_data["network"] == network:
             print(f"✅ Rede {network} configurada corretamente")
         else:
             print(f"⚠️ Rede solicitada ({network}) difere da retornada ({key_data.get('network', 'N/A')})")
                 
-        # Verifica RNF1.1 - Bibliotecas criptograficas reconhecidas
         print("✅ RNF1.1: Usando bitcoinlib para geracao de chaves")
         
         pause_for_demo()
@@ -125,7 +119,6 @@ def test_generate_addresses(private_key, network="testnet"):
     address_formats = ["p2pkh", "p2sh", "p2wpkh", "p2tr"]
     addresses = {}
     
-    # Verificar RF2.1, RF2.2 e RF2.3
     print(f"Verificando requisitos RF2.1-3: Derivacao de enderecos para {network}")
     print(f"Testando formatos: {', '.join(address_formats)}")
     
@@ -172,7 +165,6 @@ def test_balance_utxos(address, network="testnet"):
         print(f"Consulta de Saldo e UTXOs para {address}:")
         print(json.dumps(balance_data, indent=2))
         
-        # Verificar RF3.1 e RF3.2
         if "balance" in balance_data:
             print(f"✅ RF3.1: Consulta de saldo implementada")
         else:
@@ -234,7 +226,12 @@ def test_build_transaction(inputs, outputs, fee_rate=1.0):
         }
         print(f"Dados da requisicao: {json.dumps(tx_request, indent=2)}")
         
-        response = requests.post(f"{BASE_URL}/utxo", json=tx_request)
+        response = requests.post(f"{BASE_URL}/tx/build", json=tx_request)
+        
+        # Se o endpoint /tx/build não funcionar, tenta o endpoint /utxo como alternativa
+        if response.status_code != 200:
+            print(f"Endpoint /tx/build não disponível ({response.status_code}), tentando alternativa...")
+            response = requests.post(f"{BASE_URL}/utxo", json=tx_request)
         
         if response.status_code != 200:
             print(f"❌ RF4.2: Erro na resposta ({response.status_code}): {response.text}")
@@ -244,7 +241,6 @@ def test_build_transaction(inputs, outputs, fee_rate=1.0):
         print("Construcao de Transacao:")
         print(json.dumps(tx_data, indent=2))
         
-        # Verificar RF4.1, RF4.2, RF4.3, RF4.5
         has_input_address = any("address" in inp for inp in inputs)
         has_output_address = any("address" in out for out in outputs)
         
@@ -253,8 +249,21 @@ def test_build_transaction(inputs, outputs, fee_rate=1.0):
         else:
             print(f"⚠️ RF4.1: Estrutura de enderecos incompleta")
         
-        if "raw_transaction" in tx_data:
+        raw_tx_field = next((f for f in ["raw_transaction", "tx_hex"] if f in tx_data), None)
+        if raw_tx_field:
             print(f"✅ RF4.2: Criacao de transacao raw implementada")
+            
+            raw_tx = tx_data[raw_tx_field]
+            if len(raw_tx) > 10:  # Valor arbitrário, mas uma tx válida deve ter mais que isso
+                print(f"✅ Formato da transacao raw parece valido")
+            else:
+                print(f"⚠️ Transacao raw parece muito curta: {raw_tx}")
+                
+            try:
+                bytes.fromhex(raw_tx.replace("0x", ""))
+                print("✅ String hexadecimal validada com sucesso")
+            except ValueError:
+                print("⚠️ String hexadecimal contém caracteres inválidos")
         else:
             print(f"❌ RF4.2: Transacao raw nao encontrada na resposta")
             
@@ -263,10 +272,29 @@ def test_build_transaction(inputs, outputs, fee_rate=1.0):
         else:
             print(f"❌ RF4.3: Nenhum UTXO selecionado")
             
-        if "fee" in tx_data and tx_data["fee"] is not None:
-            print(f"✅ RF4.5: Calculo de taxa implementado (Taxa: {tx_data.get('fee')})")
+        fee_field = next((f for f in ["fee", "tx_fee"] if f in tx_data), None)
+        if fee_field and tx_data[fee_field] is not None:
+            print(f"✅ RF4.5: Calculo de taxa implementado (Taxa: {tx_data[fee_field]})")
+            
+            total_input = sum(inp.get("value", 0) for inp in inputs)
+            total_output = sum(out.get("value", 0) for out in outputs)
+            expected_fee = total_input - total_output
+            
+            if expected_fee > 0:
+                print(f"   Taxa esperada (baseada nos valores): {expected_fee}")
+                fee_diff = abs(expected_fee - tx_data[fee_field])
+                
+                if fee_diff < 100:  # Diferença de menos de 100 satoshis
+                    print(f"✅ Taxa calculada corresponde aproximadamente ao esperado")
+                else:
+                    print(f"⚠️ Taxa calculada ({tx_data[fee_field]}) difere do esperado ({expected_fee})")
         else:
             print(f"⚠️ RF4.5: Calculo de taxa incompleto ou nao retornado")
+        
+        if "txid" in tx_data and tx_data["txid"]:
+            print(f"✅ TXID gerado: {tx_data['txid']}")
+        else:
+            print("ℹ️ TXID não disponível nesta etapa")
         
         pause_for_demo()
         return tx_data
@@ -301,21 +329,42 @@ def test_transaction_signature(tx_data, private_key):
         print("Assinatura de Transacao:")
         print(json.dumps(sign_data, indent=2))
         
-        # Verificar RF5.1 e RF5.2
-        if "is_signed" in sign_data and sign_data["is_signed"]:
+        is_signed = False
+        if "is_signed" in sign_data:
+            is_signed = sign_data["is_signed"]
+        elif "signed_tx" in sign_data:
+            is_signed = True
+        
+        if is_signed:
             print(f"✅ RF5.1: Assinatura de transacao implementada")
         else:
             print(f"❌ RF5.1: Assinatura nao realizada ou nao retornada")
             
-        if "tx_hex" in sign_data:
+        tx_hex_field = next((field for field in ["tx_hex", "signed_tx"] if field in sign_data), None)
+        if tx_hex_field and sign_data[tx_hex_field]:
+            tx_hex = sign_data[tx_hex_field]
             print(f"✅ RF5.2: String hexadecimal da transacao exibida")
             # Verificar tamanho da string hex (deve ser um multiplo de 2)
-            if len(sign_data["tx_hex"]) % 2 == 0:
+            if len(tx_hex) % 2 == 0:
                 print(f"✅ Formato da string hexadecimal valido")
             else:
                 print(f"⚠️ Formato da string hexadecimal invalido")
+                
+            if tx_hex.startswith("0x"):
+                print("ℹ️ String hexadecimal começa com 0x")
+                
+            try:
+                bytes.fromhex(tx_hex.replace("0x", ""))
+                print("✅ String hexadecimal validada com sucesso")
+            except ValueError:
+                print("⚠️ String hexadecimal contém caracteres inválidos")
         else:
             print(f"❌ RF5.2: String hexadecimal nao retornada")
+            
+        if "warning" in sign_data:
+            print(f"⚠️ Aviso na assinatura: {sign_data['warning']}")
+        if "error" in sign_data:
+            print(f"❌ Erro na assinatura: {sign_data['error']}")
         
         pause_for_demo()
         return sign_data
@@ -334,8 +383,7 @@ def test_transaction_validation(tx_data):
             print("❌ RF6.1/RF6.2: Nao foi possivel testar validacao - dados da transacao invalidos")
             return False
         
-        # Usar tx_hex se disponível, caso contrario usar raw_transaction
-        tx_hex = tx_data.get("tx_hex", tx_data.get("raw_transaction"))
+        tx_hex = tx_data.get("tx_hex", tx_data.get("signed_tx", tx_data.get("raw_transaction")))
         
         if not tx_hex:
             print("❌ RF6.1/RF6.2: Faltando dados da transacao para validacao")
@@ -356,18 +404,19 @@ def test_transaction_validation(tx_data):
         print("Validacao de Transacao:")
         print(json.dumps(validate_data, indent=2))
         
-        # Verificar RF6.1 e RF6.2
         if "is_valid" in validate_data:
             print(f"✅ RF6.1: Validacao de estrutura implementada")
             is_valid = validate_data["is_valid"]
+            if not is_valid and "issues" in validate_data:
+                print(f"⚠️ Problemas encontrados: {', '.join(validate_data['issues'])}")
         else:
             print(f"❌ RF6.1: Status de validacao nao retornado")
             is_valid = False
             
-        if "details" in validate_data and validate_data["details"]:
+        details_field = next((f for f in ["details", "tx_details"] if f in validate_data), None)
+        if details_field and validate_data[details_field]:
             print(f"✅ RF6.2: Validacao de valores implementada")
-            # Verificar se ha dados sobre as entradas e saidas
-            details = validate_data["details"]
+            details = validate_data[details_field]
             if "total_input" in details and "total_output" in details:
                 print(f"✅ Valores totais verificados")
                 print(f"   Entrada: {details.get('total_input')}")
@@ -401,6 +450,9 @@ def test_broadcast_transaction(tx_hex):
         # Simulacao apenas - nao enviar de fato para nao gastar fundos reais
         # response = requests.post(f"{BASE_URL}/broadcast", json=broadcast_request)
         
+        # Simular resposta - Descomente a linha abaixo em ambiente real
+        # broadcast_data = response.json()
+        
         # Simular resposta
         broadcast_data = {
             "status": "simulated",
@@ -411,7 +463,6 @@ def test_broadcast_transaction(tx_hex):
         print("Broadcast de Transacao (SIMULADO):")
         print(json.dumps(broadcast_data, indent=2))
         
-        # Verificar RF7.1 e RF7.2
         if "status" in broadcast_data:
             print(f"✅ RF7.1: Interface de broadcast implementada (simulada)")
         else:
@@ -452,7 +503,6 @@ def test_transaction_status(txid):
         print("Status da Transacao:")
         print(json.dumps(status_data, indent=2))
         
-        # Verificar RF8.1 e RF8.2
         if "status" in status_data:
             print(f"✅ RF8.1: Consulta de status implementada")
             print(f"   Status: {status_data.get('status')}")
@@ -465,7 +515,6 @@ def test_transaction_status(txid):
         else:
             print(f"❌ RF8.2: Link para explorador nao retornado")
         
-        # Informacoes adicionais
         if "confirmations" in status_data:
             print(f"   Confirmacoes: {status_data.get('confirmations')}")
             
@@ -489,7 +538,6 @@ def main():
     print("=" * 80)
     print("\n")
     
-    # Obter parametros do teste - apenas a rede (testnet/mainnet)
     if len(sys.argv) > 1:
         network = sys.argv[1].lower()
         if network not in ["testnet", "mainnet"]:
@@ -501,7 +549,20 @@ def main():
             print(f"Rede invalida: {network}. Usando testnet como padrao.")
             network = "testnet"
     
-    print(f"\nExecutando testes na rede {network}\n")
+    key_types = ["entropy", "bip39", "bip32"]
+    key_type = input(f"Escolha o tipo de chave {key_types} [entropy]: ").lower() or "entropy"
+    if key_type not in key_types:
+        print(f"Tipo de chave invalido: {key_type}. Usando entropy como padrao.")
+        key_type = "entropy"
+    
+    address_formats = ["p2pkh", "p2sh", "p2wpkh", "p2tr"]
+    preferred_format = input(f"Escolha o formato de endereco preferido {address_formats} [p2wpkh]: ").lower() or "p2wpkh"
+    if preferred_format not in address_formats:
+        print(f"Formato de endereco invalido: {preferred_format}. Usando p2wpkh como padrao.")
+        preferred_format = "p2wpkh"
+    
+    print(f"\nExecutando testes na rede {network} com tipo de chave {key_type}")
+    print(f"Formato de endereco preferido: {preferred_format}")
     print(f"Cada teste tera uma pausa de {DEMO_WAIT_TIME} segundos para melhor visualizacao")
     print("Pressione Ctrl+C a qualquer momento para interromper\n")
             
@@ -512,8 +573,11 @@ def main():
         print("❌ API nao esta respondendo. Verifique se o servidor esta rodando.")
         return
     
-    # Executar os testes em sequencia
-    key_data = test_generate_keys(network)
+    if health_data and "network" in health_data and health_data["network"] != network:
+        print(f"⚠️ Aviso: A API está configurada para a rede {health_data['network']}, mas você solicitou {network}")
+        print("   Os testes continuarão, mas podem ocorrer inconsistências")
+    
+    key_data = test_generate_keys(network, key_type)
     
     if not key_data:
         print("❌ Nao foi possivel continuar - falha na geracao de chaves")
@@ -523,10 +587,16 @@ def main():
     address = key_data.get("address")
     
     addresses = test_generate_addresses(private_key, network)
+    
+    if addresses and preferred_format in addresses:
+        preferred_address = addresses[preferred_format].get("address", address)
+        if preferred_address != address:
+            print(f"Usando endereco no formato {preferred_format}: {preferred_address}")
+            address = preferred_address
+    
     balance = test_balance_utxos(address, network)
     fee = test_fee_estimation()
     
-    # Testes que dependem de UTXOs reais
     if balance and "utxos" in balance and len(balance["utxos"]) > 0:
         inputs = balance["utxos"]
         outputs = [{
@@ -536,16 +606,16 @@ def main():
         tx_data = test_build_transaction(inputs, outputs)
         
         if tx_data and "raw_transaction" in tx_data:
-            # Testar assinatura
+            
             signed_tx = test_transaction_signature(tx_data, private_key)
             
             if signed_tx and "signed_tx" in signed_tx:
-                # Testar validacao
+                
                 validation = test_transaction_validation(signed_tx)
                 
                 # Testar broadcast - COMENTADO para nao enviar transacoes reais durante o teste
                 # broadcast = test_broadcast_transaction(signed_tx.get("signed_tx"))
-                test_broadcast_transaction(signed_tx.get("signed_tx", "a"*64))
+                broadcast = test_broadcast_transaction(signed_tx.get("signed_tx", "a"*64))
                 
                 # Testar consulta de status - usando txid existente
                 if "txid" in signed_tx:
@@ -554,13 +624,13 @@ def main():
         print("\n⚠️ Sem UTXOs disponiveis para testar construcao de transacoes")
         print("  Para testar completamente, envie alguns fundos para o endereco gerado.")
         
-        # Tentar criar uma transacao de teste com dados simulados
         print("\nCriando transacao de teste com dados simulados...")
         inputs = [{
             "txid": "a" * 64,
             "vout": 0,
             "value": 10000000,
-            "script": "76a914" + "b" * 40 + "88ac"
+            "script": "76a914" + "b" * 40 + "88ac",
+            "address": address  # Adicionando o endereço para completude
         }]
         outputs = [{
             "address": address,
@@ -579,8 +649,8 @@ def main():
             # Testar broadcast simulado
             broadcast = test_broadcast_transaction(tx_data.get("raw_transaction", "a"*64))
             
-            # Testar consulta de status com um txid conhecido de testnet
-            # Txid de exemplo da testnet
+            # Testar consulta de status com um txid conhecido
+            # Txid de exemplo 
             test_txid = "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16"
             test_transaction_status(test_txid)
     
