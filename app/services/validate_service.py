@@ -5,16 +5,47 @@ from typing import Dict, Any, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-def validate_transaction(tx_hex: str, network: str = "testnet") -> Dict[str, Any]:
+def validate_transaction(tx_hex: str, network: str = "testnet"):
     """
-    Valida a estrutura e o saldo de uma transação Bitcoin.
+    Valida uma transação Bitcoin verificando sua estrutura, assinaturas e balanço.
+    
+    Esta função realiza várias verificações na transação para determinar se ela
+    é válida e pode ser transmitida para a rede. As verificações incluem:
+    
+    1. Estrutura da Transação:
+       - Formato correto dos campos
+       - Versão compatível
+       - Campos obrigatórios presentes
+    
+    2. Assinaturas (se presentes):
+       - Verificação criptográfica das assinaturas
+       - Correspondência entre chaves públicas e assinaturas
+    
+    3. Balanço de Valores:
+       - Total de entradas ≥ Total de saídas
+       - Taxa de transação razoável
+    
+    4. Conformidade com Regras:
+       - Tamanho dentro dos limites permitidos
+       - Formatos de script válidos
+       - Valores não negativos
     
     Args:
-        tx_hex: Transação em formato hexadecimal
-        network: Rede Bitcoin (testnet ou mainnet)
-        
+        tx_hex (str): Transação em formato hexadecimal (assinada ou não)
+        network (str, opcional): Rede Bitcoin ('mainnet' ou 'testnet').
+            Padrão é "testnet".
+    
     Returns:
-        Dicionário com os resultados da validação
+        Dict: Resultado da validação contendo:
+            - is_valid (bool): Indica se a transação é válida
+            - details (Dict): Detalhes sobre a transação como versão, número de 
+              entradas/saídas, valores totais, taxa, etc.
+            - issues (List[str], opcional): Lista de problemas encontrados 
+              (presente apenas se is_valid=False)
+        
+    Raises:
+        ValueError: Se a transação não puder ser decodificada ou
+            se ela violar regras fundamentais do Bitcoin
     """
     try:
         logger.info(f"Iniciando validação de transação na rede {network}")

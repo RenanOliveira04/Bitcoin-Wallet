@@ -85,8 +85,37 @@ class FeeEstimator:
 # Singleton para ser usado em toda a aplicação
 fee_estimator = FeeEstimator()
 
-def get_fee_estimate(network: str = "testnet") -> FeeEstimateModel:
-    """Interface para obter estimativa de taxa"""
+def get_fee_estimate(network: str = "testnet"):
+    """
+    Estima a taxa ideal para transações Bitcoin com base nas condições da rede.
+    
+    Esta função consulta APIs externas de estimativa de taxa para obter
+    recomendações atualizadas para diferentes níveis de prioridade. As taxas
+    são expressas em satoshis por byte virtual (sat/vB).
+    
+    Níveis de prioridade disponíveis:
+    - Alta: Para transações urgentes (~10-20 minutos)
+    - Média: Para transações normais (~1-3 blocos)
+    - Baixa: Para transações não-urgentes (~6+ blocos)
+    - Mínima: Taxa mínima para aceitação eventual
+    
+    Args:
+        network (str, opcional): Rede Bitcoin ('mainnet' ou 'testnet').
+            Padrão é "testnet".
+    
+    Returns:
+        Dict: Estimativas de taxa contendo:
+            - high (float): Taxa alta para confirmação rápida
+            - medium (float): Taxa média para confirmação moderada
+            - low (float): Taxa baixa para confirmação lenta
+            - min (float): Taxa mínima aceitável
+            - timestamp (int): Timestamp da estimativa
+            - unit (str): Unidade da taxa (sat/vB)
+        
+    Raises:
+        Exception: Se ocorrer um erro ao consultar a API de taxas
+            (em caso de falha, valores de fallback são retornados)
+    """
     fee_data = fee_estimator.estimate_from_mempool(network)
     high = fee_data['high_priority']
     medium = fee_data['medium_priority']

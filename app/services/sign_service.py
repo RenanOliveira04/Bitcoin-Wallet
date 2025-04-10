@@ -1,7 +1,7 @@
 from bitcoinlib.keys import Key
 from bitcoinlib.transactions import Transaction
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -9,13 +9,32 @@ def sign_transaction(tx_hex: str, private_key: str, network: str = "testnet") ->
     """
     Assina uma transação Bitcoin usando a chave privada fornecida.
     
+    Esta função realiza o processo de assinatura de uma transação não assinada,
+    permitindo que ela seja transmitida para a rede. A assinatura é realizada
+    usando o algoritmo ECDSA (Elliptic Curve Digital Signature Algorithm).
+    
+    O processo de assinatura inclui:
+    1. Verificar que a transação está corretamente formatada
+    2. Criar um hash de compromisso (sighash) para cada entrada
+    3. Assinar cada hash com a chave privada
+    4. Incluir as assinaturas na estrutura da transação
+    
     Args:
-        tx_hex: Transação em formato hexadecimal
-        private_key: Chave privada em formato hexadecimal
-        network: Rede Bitcoin (testnet ou mainnet)
-        
+        tx_hex (str): Transação não assinada em formato hexadecimal
+        private_key (str): Chave privada em formato WIF ou hexadecimal
+        network (str, opcional): Rede Bitcoin ('mainnet' ou 'testnet').
+            Padrão é "testnet".
+    
     Returns:
-        Dicionário com a transação assinada e detalhes
+        Dict: Transação assinada contendo:
+            - tx_hex (str): Transação assinada em formato hexadecimal
+            - txid (str): ID da transação (hash da transação)
+            - is_signed (bool): Indica se a transação foi assinada com sucesso
+            - signatures_count (int): Número de assinaturas adicionadas
+        
+    Raises:
+        ValueError: Se a transação ou a chave privada forem inválidas
+            ou se houver problemas durante o processo de assinatura
     """
     try:
         logger.info(f"Iniciando processo de assinatura de transação na rede {network}")

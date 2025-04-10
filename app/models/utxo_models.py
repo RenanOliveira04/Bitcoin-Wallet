@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, field_serializer
 from typing import List, Optional, Dict, Any, Union
-from enum import Enum
 
 class Input(BaseModel):
     txid: str

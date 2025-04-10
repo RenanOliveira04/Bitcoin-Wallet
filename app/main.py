@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import keys, addresses, balance, utxo, broadcast, fee, sign, validate, tx
 from app.dependencies import get_network, setup_logging, get_settings
 import logging
+from fastapi.openapi.utils import get_openapi
 
 logger = setup_logging()
 settings = get_settings()
@@ -82,55 +83,72 @@ Use a testnet para experimentar a API sem arriscar fundos reais.
 Este projeto está licenciado sob a licença MIT.
 """
 
+# Definição de tags
+tags_metadata = [
+    {
+        "name": "Chaves e Endereços",
+        "description": "Operações relacionadas a chaves privadas e endereços Bitcoin.",
+    },
+    {
+        "name": "Consultas",
+        "description": "Operações de consulta de saldo, UTXOs e status de transações.",
+    },
+    {
+        "name": "Transações",
+        "description": "Operações para criar, assinar, validar e transmitir transações.",
+    },
+    {
+        "name": "Taxas",
+        "description": "Operações relacionadas a taxas de transação.",
+    },
+]
+
 app = FastAPI(
     title="Bitcoin Wallet API",
-    description=api_description,
+    description="API completa para gerenciamento de carteiras Bitcoin, com suporte a diferentes formatos de endereços e operações com transações.",
     version="1.0.0",
-    contact={
-        "name": "Desenvolvedor Bitcoin Wallet",
-        "url": "https://github.com/RenanOliveira04/bitcoin-wallet",
-    },
-    license_info={
-        "name": "MIT License",
-        "url": "https://opensource.org/licenses/MIT",
-    },
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_tags=[
-        {
-            "name": "Chaves",
-            "description": "Operações relacionadas à geração e gerenciamento de chaves Bitcoin"
-        },
-        {
-            "name": "Endereços",
-            "description": "Geração de endereços em diferentes formatos a partir de chaves privadas"
-        },
-        {
-            "name": "Saldo e UTXOs",
-            "description": "Consulta de saldo e UTXOs disponíveis para um endereço Bitcoin"
-        },
-        {
-            "name": "Transações",
-            "description": "Construção, assinatura, validação e transmissão de transações Bitcoin"
-        },
-        {
-            "name": "Taxas",
-            "description": "Estimativa de taxas baseada nas condições atuais da mempool"
-        },
-        {
-            "name": "Status",
-            "description": "Verificação do status de transações na blockchain"
-        }
-    ]
+    openapi_tags=tags_metadata,
 )
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Personalização do schema OpenAPI para otimizar o ReDoc
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Adicionar informações adicionais
+    openapi_schema["info"]["contact"] = {
+        "name": "Suporte Bitcoin Wallet API",
+        "email": "suporte@bitcoin-wallet-api.com",
+        "url": "https://github.com/RenanOliveira04/bitcoin-wallet",
+    }
+    
+    openapi_schema["info"]["license"] = {
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    }
+        
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 # Rotas
 app.include_router(keys.router, prefix="/api/keys", tags=["Chaves"])

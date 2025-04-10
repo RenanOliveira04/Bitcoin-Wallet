@@ -1,81 +1,87 @@
-from fastapi import APIRouter, Query
+# app/routers/fee.py
+from fastapi import APIRouter, Query, HTTPException
+from app.models.fee_models import FeeEstimateModel
 from app.services.fee_service import get_fee_estimate
 from app.dependencies import get_network
-from app.models.fee_models import FeeEstimateModel
-import time
+import logging
 
-router = APIRouter()
+logger = logging.getLogger(__name__)
+
+router = APIRouter(
+    tags=["Taxas"],
+    responses={
+        400: {"description": "Requisição inválida"},
+        500: {"description": "Erro ao consultar estimativa de taxas"}
+    }
+)
 
 @router.get("/estimate", 
-          summary="Estimativa de taxa baseada na mempool atual",
-          description="""
-Retorna uma estimativa da taxa recomendada para transações Bitcoin baseada nas condições atuais da mempool.
+           summary="Estima a taxa ideal de transação",
+           description="""
+Estima a taxa de transação ideal com base nas condições atuais da rede Bitcoin, 
+consultando APIs de mempool.
 
-## O que são taxas Bitcoin?
+## Como as taxas funcionam no Bitcoin
 
-As taxas de transação no Bitcoin são pagas aos mineradores para incluir suas transações nos blocos.
-Quando a rede está congestionada, transações com taxas mais altas são priorizadas.
+As taxas no Bitcoin são calculadas em satoshis por byte virtual (sat/vB) ou 
+satoshis por byte peso (sat/vByte). Transações com taxas mais altas são processadas 
+mais rapidamente pelos mineradores.
 
-## Níveis de Prioridade:
+## Níveis de prioridade:
 
-* **high**: Confirmação rápida (geralmente no próximo bloco, ~10 minutos)
-* **medium**: Confirmação moderada (dentro de poucos blocos, ~30-60 minutos)
-* **low**: Confirmação lenta (podendo levar várias horas)
-* **min**: Taxa mínima aceitável (pode levar dias para confirmar)
+* **Alta**: Para transações urgentes (~10-20 minutos)
+* **Média**: Para transações normais (~1-3 blocos)
+* **Baixa**: Para transações não-urgentes (~6+ blocos)
+* **Mínima**: Taxa mínima para aceitação eventual
 
-## Unidades:
+## Como as Taxas São Calculadas:
 
-* **sat/vB**: Satoshis por byte virtual (unidade padrão após SegWit)
-* **1 satoshi = 0.00000001 BTC**
+* O espaço nos blocos Bitcoin é limitado (aproximadamente 1MB por bloco)
+* Os mineradores priorizam transações com taxas mais altas
+* Em períodos de congestionamento, as taxas sobem devido à competição
+* O mercado de taxas é dinâmico e pode mudar rapidamente
 
-## Como usar a estimativa de taxa?
+## Parâmetros:
 
-Use o valor retornado no campo `fee_rate` ao construir uma transação.
-Valores típicos variam de 1 a 100+ sat/vB dependendo da congestão da rede.
+* **priority**: Nível de prioridade (high, medium, low)
+* **network**: Rede Bitcoin (mainnet ou testnet)
 
 ## Exemplo de resposta:
 ```json
 {
-  "timestamp": "2023-09-28T14:05:23Z",
-  "fee_rates": {
-    "high": 15.4,
-    "medium": 8.2,
-    "low": 3.5,
-    "min": 1.0
-  },
-  "recommended": "medium",
-  "mempool_size": 12541,
-  "next_block_forecast": "< 10 minutos"
+  "high": 25.7,
+  "medium": 15.2,
+  "low": 8.9,
+  "min": 1.1,
+  "timestamp": 1650123456,
+  "unit": "sat/vB"
 }
 ```
 
 ## Observações:
 
-* As taxas podem variar drasticamente em curtos períodos
-* Em mainnet, as taxas tendem a ser mais altas do que na testnet
-* A estimativa é baseada em serviços externos (APIs de mempool)
-* O valor é aproximado e não garante a inclusão no bloco
-          """,
-          response_description="Estimativa atual de taxas em satoshis por byte virtual (sat/vB)",
-          response_model=FeeEstimateModel)
-def estimate_fee(network: str = Query(None, description="Rede Bitcoin: mainnet ou testnet")):
+* As estimativas são baseadas em condições atuais da rede
+* As condições da rede podem mudar rapidamente
+* Para transações mais urgentes, escolha prioridade "high"
+* Taxa mínima (min) geralmente é suficiente para inclusão eventual
+           """,
+           response_model=FeeEstimateModel)
+def estimate_fee(
+    priority: str = Query(None, description="Nível de prioridade (high, medium, low)"), 
+    network: str = Query(None, description="Rede Bitcoin (mainnet, testnet)")
+):
     """
-    Retorna a estimativa de taxa atual baseada nas condições da mempool.
+    Estima a taxa ideal para transações Bitcoin com base nas condições da rede.
     
-    - **network**: Rede Bitcoin (mainnet ou testnet). 
-                  Se não for fornecido, usa a configuração padrão.
+    - **priority**: Nível de prioridade (high, medium, low)
+    - **network**: Rede Bitcoin (mainnet, testnet)
     
-    Retorna taxa em sat/vB para diferentes prioridades.
+    Retorna estimativas de taxa para diferentes níveis de prioridade.
     """
-    if not network:
-        network = get_network()
-        
-    fee_data = get_fee_estimate(network)
-    return FeeEstimateModel(
-        high=fee_data['high_priority'],
-        medium=fee_data['medium_priority'],
-        low=fee_data['low_priority'],
-        min=fee_data['fee_rate'],
-        timestamp=int(time.time()),
-        unit="sat/vB"
-    ) 
+    try:
+        network = network or get_network()
+        result = get_fee_estimate(network)
+        return result
+    except Exception as e:
+        logger.error(f"Erro ao estimar taxa: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao estimar taxa: {str(e)}")

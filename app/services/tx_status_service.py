@@ -1,77 +1,78 @@
 import requests
 import logging
 from typing import Dict, Any, Optional
+from app.models.transaction_status_models import TransactionStatusModel
+from app.dependencies import get_bitcoinlib_network, get_blockchain_api_url
 
 logger = logging.getLogger(__name__)
 
-def get_transaction_status(txid: str, network: str = "testnet") -> Dict[str, Any]:
+def get_transaction_status(txid: str, network: str = "testnet") -> TransactionStatusModel:
     """
-    Consulta o status de uma transação na blockchain.
+    Consulta o status atual de uma transação Bitcoin na blockchain.
+    
+    Esta função verifica o estado de uma transação, incluindo se ela foi confirmada,
+    em qual bloco, quantas confirmações tem, e quando foi processada.
+    
+    O ciclo de vida de uma transação Bitcoin inclui:
+    1. Transmitida (Mempool): A transação foi enviada para a rede, mas ainda não foi incluída em um bloco
+    2. Confirmada (1+ confirmações): A transação foi incluída em um bloco
+    3. Estabelecida (6+ confirmações): A transação tem confirmações suficientes para ser considerada irreversível
     
     Args:
-        txid: ID da transação
-        network: Rede Bitcoin (testnet ou mainnet)
-        
+        txid (str): ID da transação (hash de 64 caracteres hexadecimais)
+        network (str, optional): Rede Bitcoin ('mainnet', 'testnet'). Defaults to "testnet".
+    
     Returns:
-        Dicionário com detalhes do status da transação
+        TransactionStatusModel: Status atual da transação com informações detalhadas
+            Inclui 'status', 'confirmations', 'block_height', etc.
+        
+    Raises:
+        Exception: Se a transação não for encontrada ou ocorrer um erro na consulta
     """
     try:
-        logger.info(f"Consultando status da transação {txid} na rede {network}")
+        logger.info(f"[TX_STATUS] Consultando status da transação {txid}")
         
-        if network == "mainnet":
-            api_url = f"https://blockstream.info/api/tx/{txid}"
-            explorer_url = f"https://blockstream.info/tx/{txid}"
-        else:
-            api_url = f"https://blockstream.info/testnet/api/tx/{txid}"
-            explorer_url = f"https://blockstream.info/testnet/tx/{txid}"
+        # Implementação real
+        api_url = get_blockchain_api_url(network)
+        response = requests.get(f"{api_url}/transaction/{txid}")
         
-        response = requests.get(api_url, timeout=10)
-        
-        if response.status_code == 404:
-            logger.info(f"Transação {txid} não encontrada na blockchain")
-            return {
-                "txid": txid,
-                "status": "not_found",
-                "confirmations": 0,
-                "timestamp": None,
-                "explorer_url": explorer_url
-            }
-        
-        response.raise_for_status()
-        
+        if response.status_code != 200:
+            logger.error(f"[TX_STATUS] Erro ao consultar transação: {response.text}")
+            raise Exception(f"Transação não encontrada: {txid}")
+            
         tx_data = response.json()
         
-        confirmations = tx_data.get("status", {}).get("confirmed", False)
-        block_height = tx_data.get("status", {}).get("block_height")
-        block_time = tx_data.get("status", {}).get("block_time")
+        confirmations = tx_data.get("confirmations", 0)
         
-        if confirmations:
+        if confirmations >= 6:
             status = "confirmed"
+        elif confirmations > 0:
+            status = "confirming"
         else:
-            status = "mempool"
+            status = "pending"
+            
+        explorer_base = "https://blockstream.info/"
+        if network == "testnet":
+            explorer_base += "testnet/"
         
-        result = {
-            "txid": txid,
-            "status": status,
-            "confirmations": 1 if confirmations else 0,  # Blockstream não retorna número exato de confirmações
-            "block_height": block_height,
-            "timestamp": block_time,
-            "fee": tx_data.get("fee", 0),
-            "size": tx_data.get("size", 0),
-            "vsize": tx_data.get("weight", 0) // 4,  # weight/4 é aproximadamente vsize
-            "explorer_url": explorer_url
-        }
+        return TransactionStatusModel(
+            txid=txid,
+            status=status,
+            confirmations=confirmations,
+            block_height=tx_data.get("block_height"),
+            block_hash=tx_data.get("block_hash"),
+            timestamp=tx_data.get("timestamp"),
+            explorer_url=f"{explorer_base}tx/{txid}"
+        )
         
-        return result
     except Exception as e:
-        logger.error(f"Erro ao consultar status da transação: {str(e)}", exc_info=True)
-        return _fallback_status(txid, network, str(e))
+        logger.error(f"[TX_STATUS] Erro ao consultar status da transação: {str(e)}")
+        raise Exception(f"Erro ao consultar status da transação: {str(e)}")
 
 def _fallback_status(txid: str, network: str, error: str) -> Dict[str, Any]:
     """
     Fornece um status de fallback quando a API falha.
     """
-    # URL do explorador apropriado
     if network == "mainnet":
         explorer_url = f"https://blockstream.info/tx/{txid}"
     else:

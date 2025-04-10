@@ -1,9 +1,67 @@
 from bitcoinlib.transactions import Transaction
+from typing import List, Dict, Any
 from app.models.utxo_models import TransactionRequest, TransactionResponse
+from app.dependencies import get_bitcoinlib_network
 import logging
 import traceback
 
 logger = logging.getLogger(__name__)
+
+def create_transaction(inputs: List[Dict[str, Any]], outputs: List[Dict[str, Any]], 
+                     fee_rate: float = 1.0, network: str = "testnet"):
+    """
+    Constrói uma transação Bitcoin a partir de UTXOs (entradas) e destinatários (saídas).
+    
+    Esta função cria uma transação não assinada que pode ser posteriormente assinada
+    usando o serviço de assinatura. A transação usa o modelo UTXO (Unspent Transaction Output)
+    do Bitcoin, onde as entradas são UTXOs existentes e as saídas são novos UTXOs.
+    
+    A taxa é calculada como a diferença entre a soma das entradas e a soma das saídas,
+    considerando também o tamanho estimado da transação e a taxa por byte especificada.
+    
+    Args:
+        inputs (List[Dict]): Lista de UTXOs a serem gastos. Cada UTXO deve conter:
+            - txid (str): ID da transação que contém o UTXO
+            - vout (int): Índice da saída na transação original
+            - value (int): Valor em satoshis
+            - script (str, opcional): Script de bloqueio em formato hexadecimal
+            - address (str, opcional): Endereço associado ao UTXO
+            
+        outputs (List[Dict]): Lista de destinatários e valores. Cada saída deve conter:
+            - address (str): Endereço do destinatário
+            - value (int): Valor a ser enviado em satoshis
+            
+        fee_rate (float, opcional): Taxa em satoshis por byte virtual (sat/vB).
+            Padrão é 1.0 sat/vB.
+            
+        network (str, opcional): Rede Bitcoin ('mainnet' ou 'testnet').
+            Padrão é "testnet".
+    
+    Returns:
+        Dict: Transação construída com informações detalhadas, incluindo:
+            - raw_transaction (str): Transação em formato hexadecimal
+            - txid (str): ID da transação
+            - inputs_count (int): Número de entradas
+            - outputs_count (int): Número de saídas
+            - total_input (int): Valor total das entradas em satoshis
+            - total_output (int): Valor total das saídas em satoshis
+            - fee (int): Taxa da transação em satoshis
+            - estimated_size (int): Tamanho estimado da transação em bytes
+            - estimated_fee_rate (float): Taxa estimada em sat/vB
+        
+    Raises:
+        ValueError: Se os inputs ou outputs forem inválidos ou se o
+            balanço for insuficiente para cobrir as saídas e a taxa
+    """
+    try:
+        bitcoinlib_network = get_bitcoinlib_network(network)
+        logger.info(f"[UTXO] Construindo transação com {len(inputs)} inputs e {len(outputs)} outputs")
+        
+        # Mais código aqui...
+        
+    except Exception as e:
+        logger.error(f"[UTXO] Erro ao construir transação: {str(e)}")
+        raise ValueError(f"Erro ao construir transação: {str(e)}")
 
 def build_transaction(request: TransactionRequest, network: str) -> TransactionResponse:
     """
