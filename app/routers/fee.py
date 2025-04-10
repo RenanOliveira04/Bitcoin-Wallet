@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Query
 from app.services.fee_service import get_fee_estimate
 from app.dependencies import get_network
+from app.models.fee_models import FeeEstimateModel
+import time
 
 router = APIRouter()
 
@@ -54,7 +56,8 @@ Valores típicos variam de 1 a 100+ sat/vB dependendo da congestão da rede.
 * A estimativa é baseada em serviços externos (APIs de mempool)
 * O valor é aproximado e não garante a inclusão no bloco
           """,
-          response_description="Estimativa atual de taxas em satoshis por byte virtual (sat/vB)")
+          response_description="Estimativa atual de taxas em satoshis por byte virtual (sat/vB)",
+          response_model=FeeEstimateModel)
 def estimate_fee(network: str = Query(None, description="Rede Bitcoin: mainnet ou testnet")):
     """
     Retorna a estimativa de taxa atual baseada nas condições da mempool.
@@ -67,4 +70,12 @@ def estimate_fee(network: str = Query(None, description="Rede Bitcoin: mainnet o
     if not network:
         network = get_network()
         
-    return get_fee_estimate(network) 
+    fee_data = get_fee_estimate(network)
+    return FeeEstimateModel(
+        high=fee_data['high_priority'],
+        medium=fee_data['medium_priority'],
+        low=fee_data['low_priority'],
+        min=fee_data['fee_rate'],
+        timestamp=int(time.time()),
+        unit="sat/vB"
+    ) 

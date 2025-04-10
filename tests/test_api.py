@@ -72,10 +72,10 @@ def test_health():
         return False, None
 
 def test_generate_keys(network="testnet", key_type="entropy"):
-    """Testa a geracao de chaves"""
-    print_section("2. GERACAO DE CHAVES")
+    """Testa a geração de chaves"""
+    print_section("2. GERAÇÃO DE CHAVES")
     try:
-        print(f"Testando geracao de chaves na rede {network} usando metodo '{key_type}'...")
+        print(f"Testando geração de chaves na rede {network} usando método '{key_type}'...")
         response = requests.post(f"{BASE_URL}/keys", json={
             "method": key_type, 
             "network": network
@@ -85,7 +85,7 @@ def test_generate_keys(network="testnet", key_type="entropy"):
             print(f"❌ Erro na resposta ({response.status_code}): {response.text}")
             return None
             
-        print("Geracao de Chaves:")
+        print("Geração de Chaves:")
         key_data = response.json()
         print(json.dumps(key_data, indent=2))
         
@@ -93,7 +93,7 @@ def test_generate_keys(network="testnet", key_type="entropy"):
         missing_fields = [field for field in required_fields if field not in key_data]
         
         if not missing_fields:
-            print(f"✅ Geracao de chaves para {network} funcionando corretamente")
+            print(f"✅ Geração de chaves para {network} funcionando corretamente")
         else:
             print(f"❌ Campos ausentes na resposta: {', '.join(missing_fields)}")
         
@@ -102,7 +102,7 @@ def test_generate_keys(network="testnet", key_type="entropy"):
         else:
             print(f"⚠️ Rede solicitada ({network}) difere da retornada ({key_data.get('network', 'N/A')})")
                 
-        print("✅ RNF1.1: Usando bitcoinlib para geracao de chaves")
+        print("✅ RNF1.1: Usando bitcoinlib para geração de chaves")
         
         pause_for_demo()
         return key_data

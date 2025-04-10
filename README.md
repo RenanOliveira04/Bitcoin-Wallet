@@ -85,7 +85,7 @@ uvicorn app.main:app --reload
 
 2. Acesse a documentação da API:
 ```
-http://localhost:8000/docs
+http://localhost:8000/redoc
 ```
 
 3. Execute os testes:

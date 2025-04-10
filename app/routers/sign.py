@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from app.models.sign_models import SignRequest, SignResponse
 from app.services.sign_service import sign_transaction
 from app.dependencies import get_network
 import logging
@@ -7,11 +7,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-class SignRequest(BaseModel):
-    tx_hex: str
-    private_key: str
-    network: str = None
 
 @router.post("/", 
             summary="Assina uma transação Bitcoin",
@@ -61,14 +56,14 @@ A assinatura de transações Bitcoin consiste em:
 * A assinatura deve ser realizada offline em um ambiente seguro
 * Esta API deve ser usada apenas para testes ou com quantias pequenas
             """,
-            response_description="Transação Bitcoin assinada e pronta para transmissão")
+            response_model=SignResponse)
 def sign_tx(request: SignRequest):
     """
     Assina uma transação Bitcoin usando a chave privada fornecida.
     
     - **tx_hex**: Transação em formato hexadecimal
-    - **private_key**: Chave privada em formato hexadecimal
-    - **network**: Rede Bitcoin (testnet ou mainnet)
+    - **private_key**: Chave privada em formato WIF ou hexadecimal
+    - **network**: Rede Bitcoin (mainnet ou testnet)
     
     Retorna a transação assinada e informações sobre ela.
     """

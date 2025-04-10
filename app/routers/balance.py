@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from app.services.blockchain_service import get_balance, get_utxos
 from app.dependencies import get_network
+from app.models.balance_models import BalanceModel
 
 router = APIRouter()
 
@@ -51,7 +52,8 @@ Retorna o saldo disponível e UTXOs (Unspent Transaction Outputs) para um endere
 * UTXOs com menos de 1 confirmação podem ser considerados não confiáveis
 * Recomenda-se verificar as confirmações antes de construir transações
             """,
-            response_description="Saldo e UTXOs disponíveis para o endereço")
+            response_description="Saldo e UTXOs disponíveis para o endereço",
+            response_model=BalanceModel)
 def get_balance_utxos(address: str):
     """
     Consulta saldo e UTXOs disponíveis para um endereço Bitcoin.
@@ -63,7 +65,6 @@ def get_balance_utxos(address: str):
     - **utxos**: Lista de UTXOs (saídas não gastas) disponíveis
     """
     network = get_network()
-    return {
-        "balance": get_balance(address, network),
-        "utxos": get_utxos(address, network)
-    }
+    balance_data = get_balance(address, network)
+    utxos_data = get_utxos(address, network)
+    return BalanceModel(balance=balance_data['confirmed'], utxos=utxos_data)

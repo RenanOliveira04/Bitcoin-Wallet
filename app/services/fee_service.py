@@ -3,6 +3,7 @@ import logging
 import time
 import random
 from typing import Dict, Any
+from app.models.fee_models import FeeEstimateModel
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,18 @@ class FeeEstimator:
 # Singleton para ser usado em toda a aplicação
 fee_estimator = FeeEstimator()
 
-def get_fee_estimate(network: str = "testnet") -> Dict[str, Any]:
+def get_fee_estimate(network: str = "testnet") -> FeeEstimateModel:
     """Interface para obter estimativa de taxa"""
-    return fee_estimator.estimate_from_mempool(network) 
+    fee_data = fee_estimator.estimate_from_mempool(network)
+    high = fee_data['high_priority']
+    medium = fee_data['medium_priority']
+    low = fee_data['low_priority']
+    min = fee_data['fee_rate']
+    return FeeEstimateModel(
+        high=high,
+        medium=medium,
+        low=low,
+        min=min,
+        timestamp=int(time.time()),
+        unit="sat/vB"
+    ) 

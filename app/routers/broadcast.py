@@ -1,15 +1,12 @@
 from fastapi import APIRouter, HTTPException
+from app.models.broadcast_models import BroadcastRequest, BroadcastResponse
 import requests
 from app.dependencies import get_blockchain_api_url
-from pydantic import BaseModel
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-class BroadcastRequest(BaseModel):
-    tx_hex: str
 
 @router.post("/", 
             summary="Transmite uma transação para a rede Bitcoin",
@@ -62,7 +59,7 @@ Broadcast é o processo de enviar uma transação assinada para a rede Bitcoin, 
 3. O broadcast não garante confirmação, apenas a propagação inicial
 4. Use o endpoint `/api/tx/{txid}` para monitorar o status da transação após o broadcast
             """,
-            response_description="Resultado da transmissão da transação para a rede Bitcoin")
+            response_model=BroadcastResponse)
 def broadcast_transaction(request: BroadcastRequest):
     """
     Transmite uma transação Bitcoin assinada para a rede.

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.services.tx_status_service import get_transaction_status
 from app.dependencies import get_network
+from app.models.transaction_status_models import TransactionStatusModel
 import logging
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,8 @@ O padrão da indústria considera:
 }
 ```
           """,
-          response_description="Status atual e detalhes da transação na blockchain")
+          response_description="Status atual e detalhes da transação na blockchain",
+          response_model=TransactionStatusModel)
 def get_tx_status(
     txid: str,
     network: str = Query(None, description="Rede Bitcoin: mainnet ou testnet")
@@ -84,7 +86,15 @@ def get_tx_status(
         
         result = get_transaction_status(txid, network)
         
-        return result
+        return TransactionStatusModel(
+            txid=txid,
+            status=result['status'],
+            confirmations=result['confirmations'],
+            block_height=result['block_height'],
+            block_hash=result['block_hash'],
+            timestamp=result['timestamp'],
+            explorer_url=result['explorer_url']
+        )
     except Exception as e:
         logger.error(f"Erro na rota de status de transação: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e)) 

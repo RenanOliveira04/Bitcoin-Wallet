@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from app.models.validate_models import ValidateRequest, ValidateResponse
 from app.services.validate_service import validate_transaction
 from app.dependencies import get_network
 import logging
@@ -7,10 +7,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-class ValidateRequest(BaseModel):
-    tx_hex: str
-    network: str = None
 
 @router.post("/", 
             summary="Valida uma transação Bitcoin",
@@ -87,7 +83,7 @@ Valida uma transação Bitcoin verificando sua estrutura, assinaturas e balanço
 * A validação não verifica se os UTXOs realmente existem na blockchain
 * Uma transação "válida" localmente pode ser rejeitada pela rede por outras razões
             """,
-            response_description="Resultado da validação da transação com detalhes")
+            response_model=ValidateResponse)
 def validate_tx(request: ValidateRequest):
     """
     Valida uma transação Bitcoin.
