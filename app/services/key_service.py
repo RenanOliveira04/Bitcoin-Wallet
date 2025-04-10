@@ -4,6 +4,8 @@ from bitcoinlib.keys import BKeyError
 from app.models.key_models import KeyResponse, KeyRequest
 from app.dependencies import get_bitcoinlib_network, mask_sensitive_data
 import logging
+import os
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +130,84 @@ def generate_key(request: KeyRequest) -> KeyResponse:
     except Exception as e:
         logger.error(f"[KEYS] Erro ao gerar chaves: {str(e)}")
         raise ValueError(f"Erro ao gerar chaves: {str(e)}")
+
+def save_key_to_file(key_data: KeyResponse, output_path: str = None) -> str:
+    """
+    Salva os detalhes da chave gerada em um arquivo de texto.
+    
+    Esta função cria um arquivo de texto com as informações da chave Bitcoin,
+    incluindo chave privada, chave pública, endereço, formato e rede.
+    O arquivo inclui avisos de segurança sobre a importância de manter
+    a chave privada em segurança.
+    
+    Args:
+        key_data (KeyResponse): Dados da chave gerada
+        output_path (str, optional): Caminho onde o arquivo será salvo.
+            Se None, será usado um caminho padrão com timestamp.
+    
+    Returns:
+        str: Caminho completo do arquivo gerado
+        
+    Raises:
+        IOError: Se houver problemas ao criar o arquivo
+    """
+    try:
+        if not output_path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = os.path.join(os.getcwd(), "keys")
+            
+            os.makedirs(output_dir, exist_ok=True)
+            
+            filename = f"bitcoin_key_{key_data.format}_{timestamp}.txt"
+            output_path = os.path.join(output_dir, filename)
+        
+        key_dict = key_data.model_dump()
+        
+        content = [
+            "=== BITCOIN WALLET - INFORMAÇÕES DA CHAVE ===",
+            "AVISO DE SEGURANÇA: MANTENHA ESTE ARQUIVO EM LOCAL SEGURO!",
+            "Qualquer pessoa com acesso à chave privada pode gastar seus bitcoins.",
+            "",
+            f"Data de Geração: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "",
+            "INFORMAÇÕES DA CHAVE:",
+            f"Rede: {key_dict['network']}",
+            f"Formato: {key_dict['format']}",
+            f"Endereço: {key_dict['address']}",
+            "",
+            "DADOS SENSÍVEIS - NÃO COMPARTILHE!",
+            f"Chave Privada: {key_dict['private_key']}",
+            f"Chave Pública: {key_dict['public_key']}",
+        ]
+        
+        # Adiciona mnemônico e caminho de derivação se existirem
+        if key_dict.get('mnemonic'):
+            content.append("")
+            content.append("FRASE DE RECUPERAÇÃO (MNEMÔNICO):")
+            content.append(f"{key_dict['mnemonic']}")
+            
+        if key_dict.get('derivation_path'):
+            content.append("")
+            content.append(f"Caminho de Derivação: {key_dict['derivation_path']}")
+        
+        # Adiciona instruções de recuperação
+        content.extend([
+            "",
+            "INSTRUÇÕES DE RECUPERAÇÃO:",
+            "1. Para recuperar seus fundos, importe a chave privada ou frase mnemônica em uma carteira Bitcoin compatível",
+            "2. Você pode usar carteiras como BlueWallet, Electrum, ou Ledger Live",
+            "3. Sempre teste com pequenas quantias antes de usar para valores significativos",
+            "",
+            "=== FIM DAS INFORMAÇÕES DA CHAVE ==="
+        ])
+        
+        # Escreve o conteúdo no arquivo
+        with open(output_path, 'w') as f:
+            f.write('\n'.join(content))
+            
+        logger.info(f"[KEYS] Arquivo de chave gerado com sucesso: {output_path}")
+        return output_path
+            
+    except Exception as e:
+        logger.error(f"[KEYS] Erro ao salvar dados da chave em arquivo: {str(e)}")
+        raise IOError(f"Não foi possível salvar o arquivo da chave: {str(e)}")

@@ -172,3 +172,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Arquivos sensíveis de chaves
+keys/
+*.txt

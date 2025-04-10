@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException
-from app.models.key_models import KeyRequest, KeyResponse
-from app.services.key_service import generate_key
-from app.dependencies import get_network
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi.responses import FileResponse
+from app.models.key_models import KeyRequest, KeyResponse, KeyFormat, Network
+from app.services.key_service import generate_key, save_key_to_file
+from app.dependencies import get_network, get_default_key_type
 import logging
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -88,17 +91,78 @@ def create_key(request: KeyRequest):
     Retorna a chave privada, chave pública e endereço gerados.
     """
     try:
-        network = request.network or get_network()
+        # Definir valores padrão se não fornecidos
+        if not request.network:
+            request.network = get_network()
+        if not request.key_format:
+            request.key_format = get_default_key_type()
         
-        result = generate_key(
-            method=request.method,
-            network=network,
-            mnemonic=request.mnemonic,
-            derivation_path=request.derivation_path,
-            passphrase=request.passphrase
-        )
-        
+        result = generate_key(request)
         return result
     except Exception as e:
-        logger.error(f"Erro na geração de chaves: {str(e)}", exc_info=True)
+        logger.error(f"[KEYS] Erro na geração de chaves: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/export", 
+            summary="Gera chaves Bitcoin e exporta para arquivo de texto",
+            description="""
+Gera um novo par de chaves Bitcoin e salva as informações em um arquivo de texto para backup.
+
+## Segurança Importante:
+
+* **⚠️ Este arquivo contém sua chave privada!** Qualquer pessoa com acesso a este arquivo pode gastar seus bitcoins.
+* **⚠️ Armazene-o em um local seguro**, preferencialmente offline.
+* **⚠️ Considere criptografar o arquivo** para maior segurança.
+* **⚠️ Faça backup** em múltiplos locais seguros.
+
+## Conteúdo do Arquivo:
+
+O arquivo exportado contém todas as informações necessárias para recuperar sua carteira:
+
+* Endereço Bitcoin
+* Chave privada
+* Chave pública 
+* Frase mnemônica (se aplicável)
+* Caminho de derivação (se aplicável)
+* Informações sobre a rede e formato
+
+## Recuperação:
+
+Para utilizar suas chaves no futuro, você pode:
+
+1. Importar a chave privada em qualquer carteira Bitcoin compatível
+2. Importar a frase mnemônica em carteiras que suportam BIP39
+3. Utilizar a API `/api/keys` com o método "bip39" e a mnemônica salva
+
+## Parâmetros:
+
+Mesmos parâmetros da geração de chaves normal, com opção de especificar o caminho de saída.
+            """)
+def export_key_to_file(
+    request: KeyRequest,
+    background_tasks: BackgroundTasks,
+    output_path: str = Query(None, description="Caminho opcional para salvar o arquivo de chaves")
+):
+    try:
+        # Definir valores padrão se não fornecidos
+        if not request.network:
+            request.network = get_network()
+        if not request.key_format:
+            request.key_format = get_default_key_type()
+        
+        # Gerar a chave
+        key_result = generate_key(request)
+        
+        # Salvar a chave em arquivo
+        file_path = save_key_to_file(key_result, output_path)
+        
+        # Retornar o arquivo como download
+        return FileResponse(
+            path=file_path,
+            filename=os.path.basename(file_path),
+            media_type="text/plain",
+            background=background_tasks
+        )
+    except Exception as e:
+        logger.error(f"[KEYS] Erro ao exportar chaves: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
