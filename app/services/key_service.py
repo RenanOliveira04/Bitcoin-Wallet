@@ -101,14 +101,37 @@ def generate_key(request: KeyRequest) -> KeyResponse:
         elif key_format == "p2sh":
             address = hdwallet.address_p2sh()
         elif key_format == "p2wpkh":
-            address = hdwallet.address_segwit()
+            try:
+                address = hdwallet.address_segwit
+                if callable(address):
+                    address = address()
+            except (AttributeError, TypeError) as e:
+                logger.warning(f"[KEYS] Método address_segwit não disponível: {str(e)}")
+                try:
+                    if hasattr(hdwallet, "address_segwit_p2wpkh"):
+                        address = hdwallet.address_segwit_p2wpkh()
+                    elif hasattr(hdwallet, "p2wpkh_address"):
+                        address = hdwallet.p2wpkh_address()
+                    else:
+                        logger.warning("[KEYS] Fallback para P2PKH devido à incompatibilidade com SegWit")
+                        address = hdwallet.address()
+                        key_format = "p2pkh"
+                except Exception as e2:
+                    logger.error(f"[KEYS] Erro ao gerar endereço SegWit: {str(e2)}")
+                    address = hdwallet.address()
+                    key_format = "p2pkh"
         elif key_format == "p2tr":
             try:
-                address = hdwallet.address_taproot()
+                if hasattr(hdwallet, "address_taproot"):
+                    address = hdwallet.address_taproot()
+                else:
+                    logger.warning("[KEYS] P2TR não disponível, usando P2PKH como fallback")
+                    address = hdwallet.address()
+                    key_format = "p2pkh"
             except AttributeError:
-                logger.warning("[KEYS] P2TR não disponível, usando P2WPKH como fallback")
-                address = hdwallet.address_segwit()
-                key_format = "p2wpkh"
+                logger.warning("[KEYS] P2TR não disponível, usando P2PKH como fallback")
+                address = hdwallet.address()
+                key_format = "p2pkh"
         else:
             address = hdwallet.address()
             key_format = "p2pkh"

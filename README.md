@@ -13,6 +13,8 @@ API para gerenciamento de carteiras Bitcoin, suportando diferentes formatos de e
 - Validação de transações
 - Broadcast de transações
 - Consulta de status de transações
+- **Modo offline para uso como cold wallet**
+- **Cache persistente de dados da blockchain**
 
 ## Requisitos
 
@@ -76,6 +78,21 @@ API_SECRET=seu_segredo_api
 > 2. O arquivo já está incluído no `.gitignore` para evitar vazamento de informações
 > 3. Para ambientes de produção, considere usar um gerenciador de segredos ou variáveis de ambiente do sistema
 
+### Configurações para Cold Wallet
+
+O Bitcoin Wallet pode ser usado como cold wallet, funcionando sem conexão constante com a internet.
+
+```
+# Habilitar modo offline por padrão
+OFFLINE_MODE=true
+
+# Diretório para armazenamento de cache (padrão é ~/.bitcoin-wallet/cache)
+CACHE_DIR=/caminho/personalizado/cache
+
+# Tempo de expiração do cache em segundos (defina um valor alto para cold wallet)
+CACHE_TIMEOUT=2592000  # 30 dias
+```
+
 ## Uso
 
 1. Inicie o servidor:
@@ -99,6 +116,53 @@ python tests/test_api.py testnet p2wpkh
 # Opção 3: Usar mainnet
 python tests/test_api.py mainnet p2tr
 ```
+
+## Modo Cold Wallet
+
+Este projeto foi projetado para funcionar como uma ferramenta de teste de transações Bitcoin para desenvolvedores, permitindo operação como cold wallet (sem conexão constante com a internet).
+
+### Características do modo Cold Wallet:
+
+1. **Cache Persistente**: Todos os dados consultados da blockchain são armazenados localmente em `~/.bitcoin-wallet/cache`.
+2. **Operação Offline**: O sistema detecta automaticamente se está offline ou pode ser forçado a operar em modo offline.
+3. **Dados Expirados**: Em modo offline, o sistema usa dados do cache mesmo que expirados.
+
+### Como testar o modo Cold Wallet:
+
+1. **Preparação do cache**:
+   ```bash
+   # Consultar endereços enquanto online para preencher o cache
+   curl "http://localhost:8000/api/balance/tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav"
+   ```
+
+2. **Testar o modo offline**:
+   ```bash
+   # Desconectar da internet ou usar o parâmetro force_offline
+   curl "http://localhost:8000/api/balance/tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav?force_offline=true"
+   ```
+
+3. **Verificar o cache persistente**:
+   ```bash
+   # O cache é armazenado em ~/.bitcoin-wallet/cache
+   ls -la ~/.bitcoin-wallet/cache
+   ```
+
+### Fluxo de Trabalho para Cold Wallet:
+
+1. **Fase Online**:
+   - Gere chaves e endereços
+   - Consulte saldos e UTXOs (serão armazenados em cache)
+   - Verifique taxas atuais da rede
+
+2. **Fase Offline (Cold Storage)**:
+   - Construa transações usando UTXOs do cache
+   - Assine transações
+   - Valide as transações localmente
+
+3. **Fase Online (Broadcast)**:
+   - Conecte-se à internet novamente
+   - Transmita as transações assinadas para a rede
+   - Verifique o status das transações
 
 ## Endpoints
 

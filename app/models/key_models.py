@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from app.dependencies import get_network
 from enum import Enum
 
@@ -87,6 +87,46 @@ class KeyResponse(BaseModel):
                     "network": "testnet",
                     "derivation_path": "m/44'/1'/0'/0/0",
                     "mnemonic": "glass excess betray build gun intact calm calm broccoli disease calm voice"
+                }
+            ]
+        }
+    }
+
+class KeyExportRequest(BaseModel):
+    private_key: str = Field(..., description="Chave privada a ser exportada")
+    public_key: str = Field(..., description="Chave pública a ser exportada")
+    address: str = Field(..., description="Endereço Bitcoin associado às chaves")
+    network: Optional[str] = Field(None, description="Rede Bitcoin (mainnet ou testnet)")
+    file_format: Optional[str] = Field("txt", description="Formato do arquivo (apenas 'txt' suportado)")
+    format: Optional[str] = Field(None, description="Formato do endereço (p2pkh, p2sh, p2wpkh, p2tr)")
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "private_key": "cPawEGNRwkFCYMJ5x5MkpJ8SQ6xFRoZpLVhKQi1bMrMHNZFmQRFz",
+                    "public_key": "03a7a0c16cdf77b36dd75985a8ea6b0e3ad9c6653854f9d3d093b5a1e21e78981a",
+                    "address": "mz7YZkfxRqRfL9YFLkFsUe7zVjpPEqDEUj",
+                    "network": "testnet",
+                    "file_format": "txt",
+                    "format": "p2pkh"
+                }
+            ]
+        }
+    }
+
+class KeyExportResponse(BaseModel):
+    success: bool = Field(..., description="Indica se a exportação foi bem-sucedida")
+    file_path: str = Field(..., description="Caminho completo para o arquivo gerado")
+    message: str = Field(..., description="Mensagem informativa sobre a exportação")
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "success": True,
+                    "file_path": "/home/user/.bitcoin-wallet/keys/bitcoin_testnet_mz7YZkfx_20250415_182045.txt",
+                    "message": "Chaves exportadas com sucesso para /home/user/.bitcoin-wallet/keys/bitcoin_testnet_mz7YZkfx_20250415_182045.txt"
                 }
             ]
         }

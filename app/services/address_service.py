@@ -32,30 +32,90 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
         bitcoinlib_network = get_bitcoinlib_network(network)
         logger.info(f"[ADDRESS] Gerando endereço {address_format} para chave privada {mask_sensitive_data(private_key)}")
         
-        try:
-            # Tenta carregar como WIF primeiro
-            key = Key(private_key, network=bitcoinlib_network)
-        except:
-            # Se falhar, tenta carregar como hex
+        # Identificar tipo de chave e carregar corretamente
+        key = None
+        for method in [
+            # Tentar diferentes métodos de carregamento
+            lambda: Key(private_key, network=bitcoinlib_network),
+            lambda: HDKey.from_wif(private_key, network=bitcoinlib_network),
+            lambda: HDKey(private_key, network=bitcoinlib_network),
+        ]:
             try:
-                key = HDKey.from_wif(private_key, network=bitcoinlib_network)
-            except:
-                # Se ainda falhar, tenta como HDKey
-                key = HDKey(private_key, network=bitcoinlib_network)
+                key = method()
+                break
+            except Exception as e:
+                logger.debug(f"[ADDRESS] Método de carregamento de chave falhou: {str(e)}")
+                continue
         
+        if not key:
+            raise ValueError(f"Não foi possível carregar a chave privada. Formato inválido ou incompatível.")
+        
+        # Gerar endereço conforme formato solicitado
         if address_format == "p2pkh":
-            address = key.address()
+            try:
+                address = key.address()
+            except Exception as e:
+                logger.error(f"[ADDRESS] Erro ao gerar P2PKH: {str(e)}")
+                raise ValueError(f"Erro ao gerar endereço P2PKH: {str(e)}")
+                
         elif address_format == "p2sh":
-            address = key.address_p2sh()
+            try:
+                # Tentar diferentes métodos para P2SH
+                if hasattr(key, 'address_p2sh'):
+                    address = key.address_p2sh()
+                elif hasattr(key, 'p2sh_address'):
+                    address = key.p2sh_address()
+                else:
+                    # Fallback para P2PKH
+                    logger.warning("[ADDRESS] P2SH não disponível, usando P2PKH como fallback")
+                    address = key.address()
+                    address_format = "p2pkh"
+            except Exception as e:
+                logger.error(f"[ADDRESS] Erro ao gerar P2SH: {str(e)}")
+                address = key.address()
+                address_format = "p2pkh"
+                
         elif address_format == "p2wpkh":
-            address = key.address_segwit()
+            try:
+                # Tentar diferentes métodos para P2WPKH
+                if hasattr(key, 'address_segwit'):
+                    segwit_method = key.address_segwit
+                    if callable(segwit_method):
+                        address = segwit_method()
+                    else:
+                        address = segwit_method
+                elif hasattr(key, 'address_segwit_p2wpkh'):
+                    address = key.address_segwit_p2wpkh()
+                elif hasattr(key, 'p2wpkh_address'):
+                    address = key.p2wpkh_address()
+                else:
+                    # Fallback para P2PKH
+                    logger.warning("[ADDRESS] P2WPKH não disponível, usando P2PKH como fallback")
+                    address = key.address()
+                    address_format = "p2pkh"
+            except Exception as e:
+                logger.error(f"[ADDRESS] Erro ao gerar P2WPKH: {str(e)}")
+                address = key.address()
+                address_format = "p2pkh"
+                
         elif address_format == "p2tr":
             try:
-                address = key.address_taproot()
-            except AttributeError:
-                logger.warning("[ADDRESS] P2TR não disponível, usando P2WPKH como fallback")
-                address = key.address_segwit()
-                address_format = "p2wpkh"
+                # Tentar gerar endereço Taproot
+                if hasattr(key, 'address_taproot'):
+                    taproot_method = key.address_taproot
+                    if callable(taproot_method):
+                        address = taproot_method()
+                    else:
+                        address = taproot_method
+                else:
+                    # Fallback para P2PKH
+                    logger.warning("[ADDRESS] P2TR não disponível, usando P2PKH como fallback")
+                    address = key.address()
+                    address_format = "p2pkh"
+            except Exception as e:
+                logger.error(f"[ADDRESS] Erro ao gerar P2TR: {str(e)}")
+                address = key.address()
+                address_format = "p2pkh"
         else:
             raise ValueError(f"Formato de endereço inválido: {address_format}")
         

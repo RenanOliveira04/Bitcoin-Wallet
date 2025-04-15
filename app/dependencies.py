@@ -4,6 +4,11 @@ import bech32
 from bitcoinlib.networks import NETWORK_DEFINITIONS
 import logging
 from typing import Optional
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import time
+import os
+from pathlib import Path
 
 class Settings(BaseSettings):
     network: str = "testnet"
@@ -17,6 +22,10 @@ class Settings(BaseSettings):
     
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
+    
+    offline_mode: bool = False
+    cache_dir: Optional[str] = None
+    cache_timeout_cold: int = 2592000  # 30 dias
 
     class Config:
         env_file = ".env"
@@ -43,6 +52,45 @@ def get_network():
 
 def get_default_key_type():
     return get_settings().default_key_type
+
+def get_cache_dir():
+    """
+    Retorna o diretório para armazenamento de cache persistente.
+    
+    Se a configuração cache_dir existir, usa esse valor.
+    Caso contrário, usa o diretório padrão ~/.bitcoin-wallet/cache
+    
+    Returns:
+        Path: Diretório de cache
+    """
+    settings = get_settings()
+    if settings.cache_dir:
+        return Path(settings.cache_dir)
+    return Path.home() / ".bitcoin-wallet" / "cache"
+
+def is_offline_mode_enabled():
+    """
+    Verifica se o modo offline está habilitado nas configurações.
+    
+    Returns:
+        bool: True se o modo offline estiver habilitado, False caso contrário
+    """
+    return get_settings().offline_mode
+
+def get_cache_timeout(cold_wallet: bool = False):
+    """
+    Retorna o timeout do cache conforme configuração.
+    
+    Args:
+        cold_wallet (bool): Se True, retorna o timeout para cold wallet
+    
+    Returns:
+        int: Timeout em segundos
+    """
+    settings = get_settings()
+    if cold_wallet:
+        return settings.cache_timeout_cold
+    return settings.cache_timeout
 
 def bech32_encode(network: str, witver: int, data: bytes) -> str:
     """
@@ -181,3 +229,12 @@ def get_cached_network_info(network=None):
         "difficulty": 50000000000,  
         "chain": get_network() or network
     }
+
+def setup_middleware(app: FastAPI):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )

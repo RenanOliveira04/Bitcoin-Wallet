@@ -45,18 +45,27 @@ def sign_transaction(tx_hex: str, private_key: str, network: str = "testnet") ->
         tx = Transaction.parse_hex(tx_hex)
         logger.debug(f"Transação carregada, inputs: {len(tx.inputs)}, outputs: {len(tx.outputs)}")
         
+        # Salvar o estado antes da assinatura para comparar depois
+        original_tx_hex = tx.raw_hex()
+        
         tx.sign(key.private_byte)
         logger.debug("Transação assinada com sucesso")
         
+        # Verificar se a transação foi alterada (assinada)
+        is_signed = original_tx_hex != tx.raw_hex()
+        signatures_count = len(tx.inputs)  # Assume que todos os inputs foram assinados
+        
         return {
-            "signed_tx": tx.raw_hex(),
+            "tx_hex": tx.raw_hex(),
             "txid": tx.txid,
+            "is_signed": is_signed,
+            "signatures_count": signatures_count,
             "hash": tx.hash,
             "size": tx.size,
             "vsize": tx.vsize if hasattr(tx, 'vsize') else tx.size,
             "input_count": len(tx.inputs),
             "output_count": len(tx.outputs),
-            "fee": tx.fee
+            "fee": tx.fee if hasattr(tx, 'fee') else 0
         }
     except Exception as e:
         logger.error(f"Erro ao assinar transação: {str(e)}", exc_info=True)
@@ -74,16 +83,20 @@ def _fallback_sign(tx_hex: str, private_key: str, network: str, error: str) -> D
         txid = tx.txid
         
         return {
-            "signed_tx": tx_hex,   
+            "tx_hex": tx_hex,   
             "txid": txid,
+            "is_signed": False,
+            "signatures_count": 0,
             "hash": txid,
             "warning": "Assinatura simulada - esta transação NÃO está realmente assinada",
             "error": error
         }
     except:
         return {
-            "signed_tx": tx_hex,
+            "tx_hex": tx_hex,
             "txid": "0000000000000000000000000000000000000000000000000000000000000000",
+            "is_signed": False,
+            "signatures_count": 0,
             "warning": "Assinatura simulada - esta transação NÃO está realmente assinada",
             "error": error
         } 

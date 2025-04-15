@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Body, Depends
 from fastapi.responses import FileResponse
-from app.models.key_models import KeyRequest, KeyResponse, KeyFormat, Network
+from app.models.key_models import KeyRequest, KeyResponse, KeyFormat, Network, KeyExportRequest, KeyExportResponse
 from app.services.key_service import generate_key, save_key_to_file
 from app.dependencies import get_network, get_default_key_type
 import logging
 import os
 from pathlib import Path
+from datetime import datetime
+from app.services.key_generator import KeyGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -166,3 +168,86 @@ def export_key_to_file(
     except Exception as e:
         logger.error(f"[KEYS] Erro ao exportar chaves: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/generate", response_model=KeyResponse)
+async def generate_keys(request: KeyRequest, network: str = Depends(get_network)):
+    try:
+        method = request.method
+        passphrase = request.passphrase
+        
+        if request.network:
+            network = request.network
+            
+        key_generator = KeyGenerator(network)
+        
+        if method == "entropy":
+            return key_generator.generate_from_entropy()
+        elif method == "bip39":
+            return key_generator.generate_from_bip39(passphrase)
+        elif method == "bip32":
+            return key_generator.generate_from_bip32(passphrase)
+        else:
+            raise HTTPException(status_code=400, detail=f"Método de geração de chaves inválido: {method}")
+            
+    except Exception as e:
+        logger.error(f"Erro ao gerar chaves: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar chaves: {str(e)}")
+
+@router.post("/export", response_model=KeyExportResponse)
+async def export_keys(request: KeyExportRequest):
+    try:
+        # Valida dados de entrada
+        if not request.private_key or not request.address:
+            raise HTTPException(status_code=400, detail="Chave privada e endereço são obrigatórios")
+        
+        # Define formato de arquivo (apenas txt suportado por enquanto)
+        file_format = request.file_format.lower() if request.file_format else "txt"
+        if file_format != "txt":
+            logger.warning(f"Formato de arquivo {file_format} não suportado. Usando txt.")
+            file_format = "txt"
+        
+        # Define a rede
+        network = request.network if request.network else "testnet"
+        
+        # Cria diretório se não existir
+        user_home = os.path.expanduser("~")
+        keys_dir = os.path.join(user_home, ".bitcoin-wallet", "keys")
+        os.makedirs(keys_dir, exist_ok=True)
+        
+        # Gera nome do arquivo com timestamp e primeiros caracteres do endereço
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        address_prefix = request.address[:8]
+        filename = f"bitcoin_{network}_{address_prefix}_{timestamp}.{file_format}"
+        file_path = os.path.join(keys_dir, filename)
+        
+        # Prepara conteúdo do arquivo
+        content = "====== BITCOIN WALLET - INFORMAÇÕES DA CARTEIRA ======\n\n"
+        content += "AVISO: Este arquivo contém informações sensíveis. Mantenha-o seguro.\n"
+        content += "       Quem tiver acesso à chave privada pode movimentar seus fundos!\n\n"
+        content += f"Data de exportação: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+        content += f"Rede: {network.upper()}\n"
+        content += f"Formato do endereço: {request.format if request.format else 'N/A'}\n\n"
+        content += f"Endereço Bitcoin: {request.address}\n"
+        content += f"Chave pública: {request.public_key}\n"
+        content += f"Chave privada: {request.private_key}\n\n"
+        content += "====== RECOMENDAÇÕES DE SEGURANÇA ======\n"
+        content += "1. Mantenha este arquivo em mídia offline e criptografada.\n"
+        content += "2. Faça cópias de backup em locais seguros.\n"
+        content += "3. Nunca compartilhe sua chave privada com ninguém.\n"
+        
+        # Escreve o conteúdo no arquivo
+        with open(file_path, 'w') as f:
+            f.write(content)
+        
+        logger.info(f"Chaves exportadas com sucesso para {file_path}")
+        
+        # Retorna resposta
+        return KeyExportResponse(
+            success=True,
+            file_path=file_path,
+            message=f"Chaves exportadas com sucesso para {file_path}"
+        )
+            
+    except Exception as e:
+        logger.error(f"Erro ao exportar chaves: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao exportar chaves: {str(e)}")

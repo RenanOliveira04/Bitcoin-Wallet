@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from bitcoinlib.transactions import Transaction
+from bitcoinlib.transactions import Transaction, Input, Output
 from app.models.utxo_models import TransactionRequest, TransactionResponse
 import logging
 
@@ -14,41 +14,59 @@ class BitcoinLibBuilder(TransactionBuilder):
     def build(self, request: TransactionRequest, network: str) -> TransactionResponse:
         logger.info(f"Iniciando construção de transação para rede {network}")
         try:
-            formatted_inputs = []
+            # Criar objetos Input em vez de dicionários
+            tx_inputs = []
             for input_tx in request.inputs:
-                formatted_input = {
-                    "txid": input_tx.txid,
-                    "output_n": input_tx.vout,
-                }
+                tx_input = Input(
+                    prev_txid=input_tx.txid,
+                    output_n=input_tx.vout,
+                    value=input_tx.value or 0,  # Valor é necessário
+                    address=input_tx.address,
+                    network=network
+                )
                 if input_tx.script:
-                    formatted_input["script"] = input_tx.script
-                if input_tx.value:
-                    formatted_input["value"] = input_tx.value
+                    tx_input.script = input_tx.script
                 if input_tx.sequence:
-                    formatted_input["sequence"] = input_tx.sequence
-                formatted_inputs.append(formatted_input)
+                    tx_input.sequence = input_tx.sequence
+                tx_inputs.append(tx_input)
             
-            formatted_outputs = []
+            # Criar objetos Output em vez de dicionários
+            tx_outputs = []
             for output in request.outputs:
-                formatted_outputs.append({
-                    "address": output.address,
-                    "value": output.value
-                })
+                tx_output = Output(
+                    value=output.value,
+                    address=output.address,
+                    network=network
+                )
+                tx_outputs.append(tx_output)
             
+            # Criar transação
+            fee = request.fee_rate or 1.0
             tx = Transaction(
-                inputs=formatted_inputs,
-                outputs=formatted_outputs,
+                inputs=tx_inputs,
+                outputs=tx_outputs,
                 network=network,
-                fee=request.fee_rate
+                fee=fee,
+                fee_per_kb=int(fee * 1000)  # Converter para fee por KB
             )
+            
+            # Calcular a taxa real
+            calculated_fee = 0
+            if tx.input_total and tx.output_total:
+                calculated_fee = tx.input_total - tx.output_total
+            
             response = TransactionResponse(
                 raw_transaction=tx.raw_hex(),
-                txid=tx.txid
+                txid=tx.txid,
+                fee=calculated_fee
             )
+            
             logger.debug("Transação construída com sucesso", extra={
                 "txid": tx.txid,
-                "network": network
+                "network": network,
+                "fee": calculated_fee
             })
+            
             return response
         except Exception as e:
             logger.error("Erro ao construir transação", exc_info=True)

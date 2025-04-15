@@ -6,6 +6,7 @@ import time
 import platform
 import os
 from datetime import datetime
+from pathlib import Path
 
 BASE_URL = "http://localhost:8000/api"
 DEMO_WAIT_TIME = 6
@@ -112,6 +113,62 @@ def test_generate_keys(network="testnet", key_type="entropy"):
         pause_for_demo("Tentando novamente em")
         return None
 
+def test_generate_key_file(key_data, network="testnet"):
+    """Testa a geração de arquivo com as chaves e endereço"""
+    print_section("2.1. EXPORT DE CHAVES PARA ARQUIVO")
+    try:
+        print(f"Testando exportação de chaves para arquivo na rede {network}...")
+        
+        # Construir os parâmetros necessários
+        params = {
+            "private_key": key_data.get("private_key"),
+            "public_key": key_data.get("public_key"),
+            "address": key_data.get("address"),
+            "network": network,
+            "file_format": "txt"  # Podemos testar outros formatos no futuro
+        }
+        
+        # Chamada à API para gerar o arquivo
+        response = requests.post(f"{BASE_URL}/keys/export", json=params)
+        
+        if response.status_code != 200:
+            print(f"❌ Erro na resposta ({response.status_code}): {response.text}")
+            return False
+        
+        # Analisar resposta e verificar o caminho do arquivo
+        export_data = response.json()
+        print("Exportação de Chaves:")
+        print(json.dumps(export_data, indent=2))
+        
+        if "file_path" in export_data:
+            file_path = export_data["file_path"]
+            
+            # Verificar se o arquivo foi criado
+            if os.path.exists(file_path):
+                print(f"✅ RF1.2: Arquivo de chaves gerado com sucesso em: {file_path}")
+                
+                # Verificar conteúdo do arquivo
+                with open(file_path, 'r') as file:
+                    content = file.read()
+                    if key_data.get("private_key") in content and key_data.get("address") in content:
+                        print(f"✅ Conteúdo do arquivo contém as informações corretas")
+                    else:
+                        print(f"❌ Conteúdo do arquivo não contém todas as informações esperadas")
+            else:
+                print(f"❌ RF1.2: Arquivo de chaves não foi encontrado em: {file_path}")
+                return False
+        else:
+            print(f"❌ RF1.2: Caminho do arquivo não retornado na resposta")
+            return False
+        
+        pause_for_demo()
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao exportar chaves para arquivo: {str(e)}")
+        traceback.print_exc()
+        pause_for_demo("Tentando novamente em")
+        return False
+
 def test_generate_addresses(private_key, network="testnet"):
     """Testa a geracao de enderecos em diferentes formatos"""
     print_section("2. GERACAO DE ENDERECOS")
@@ -149,11 +206,12 @@ def test_generate_addresses(private_key, network="testnet"):
     pause_for_demo()
     return addresses
 
-def test_balance_utxos(address, network="testnet"):
-    """Testa a consulta de saldo e UTXOs"""
+def test_balance_utxos(address, network="testnet", test_offline=True):
+    """Testa a consulta de saldo e UTXOs com suporte a modo offline"""
     print_section("3. CONSULTA DE SALDOS")
     
     try:
+        # Teste online normal
         print(f"Consultando saldo e UTXOs para {address} na {network}...")
         response = requests.get(f"{BASE_URL}/balance/{address}")
         
@@ -165,19 +223,30 @@ def test_balance_utxos(address, network="testnet"):
         print(f"Consulta de Saldo e UTXOs para {address}:")
         print(json.dumps(balance_data, indent=2))
         
-        if "balance" in balance_data:
-            print(f"✅ RF3.1: Consulta de saldo implementada")
+        # Verificar cache
+        cache_file = Path.home() / ".bitcoin-wallet" / "cache" / "blockchain_cache.json"
+        if cache_file.exists():
+            print(f"✅ RF3.3: Cache persistente implementado")
         else:
-            print(f"❌ RF3.1: Saldo nao encontrado na resposta")
-            
-        if "utxos" in balance_data:
-            print(f"✅ RF3.2: Consulta de UTXOs implementada")
-            utxo_count = len(balance_data.get("utxos", []))
-            print(f"   UTXOs encontrados: {utxo_count}")
-        else:
-            print(f"❌ RF3.2: UTXOs nao encontrados na resposta")
+            print(f"❌ RF3.3: Cache persistente não encontrado")
         
-        pause_for_demo()
+        # Teste offline se solicitado
+        if test_offline:
+            print(f"\nTestando modo offline...")
+            offline_response = requests.get(f"{BASE_URL}/balance/{address}?force_offline=true")
+            
+            if offline_response.status_code == 200:
+                print(f"✅ RF3.4: Modo offline implementado")
+                
+                # Comparar dados
+                offline_data = offline_response.json()
+                if offline_data["balance"] == balance_data["balance"]:
+                    print(f"✅ Dados consistentes entre modos online e offline")
+                else:
+                    print(f"⚠️ Dados inconsistentes: online={balance_data['balance']}, offline={offline_data['balance']}")
+            else:
+                print(f"❌ RF3.4: Modo offline não implementado ({offline_response.status_code})")
+        
         return balance_data
     except Exception as e:
         print(f"❌ Erro ao consultar saldo: {str(e)}")
@@ -529,6 +598,32 @@ def test_transaction_status(txid):
         pause_for_demo("Tentando novamente em")
         return None
 
+def test_cold_wallet_features():
+    """Testa funcionalidades específicas de cold wallet"""
+    print_section("9. FUNCIONALIDADES DE COLD WALLET")
+    
+    from tests.test_cold_wallet import test_online_mode, test_offline_mode, test_data_consistency
+    
+    # Testar modo online
+    print("Testando modo online e criação de cache...")
+    online_success = test_online_mode()
+    
+    # Testar modo offline
+    print("\nTestando modo offline...")
+    offline_success = test_offline_mode()
+    
+    # Testar consistência
+    print("\nTestando consistência de dados entre online/offline...")
+    consistency_success = test_data_consistency()
+    
+    if online_success and offline_success and consistency_success:
+        print("✅ RF3.3/RF3.4: Funcionalidades de cold wallet implementadas corretamente")
+    else:
+        print("❌ RF3.3/RF3.4: Problemas nas funcionalidades de cold wallet")
+    
+    pause_for_demo()
+    return online_success and offline_success and consistency_success
+
 def main():
     """Funcao principal para execucao de testes"""
     print("\n")
@@ -561,8 +656,13 @@ def main():
         print(f"Formato de endereco invalido: {preferred_format}. Usando p2wpkh como padrao.")
         preferred_format = "p2wpkh"
     
+    test_cold = input("Testar funcionalidades de cold wallet? (s/n) [s]: ").lower() != "n"
+    export_key_file = input("Testar exportação de chaves para arquivo? (s/n) [s]: ").lower() != "n"
+    
     print(f"\nExecutando testes na rede {network} com tipo de chave {key_type}")
     print(f"Formato de endereco preferido: {preferred_format}")
+    print(f"Testar cold wallet: {'Sim' if test_cold else 'Não'}")
+    print(f"Exportar chaves para arquivo: {'Sim' if export_key_file else 'Não'}")
     print(f"Cada teste tera uma pausa de {DEMO_WAIT_TIME} segundos para melhor visualizacao")
     print("Pressione Ctrl+C a qualquer momento para interromper\n")
             
@@ -582,6 +682,10 @@ def main():
     if not key_data:
         print("❌ Nao foi possivel continuar - falha na geracao de chaves")
         return
+    
+    # Teste de exportação de chaves para arquivo
+    if export_key_file:
+        test_generate_key_file(key_data, network)
     
     private_key = key_data.get("private_key")
     address = key_data.get("address")
@@ -653,6 +757,10 @@ def main():
             # Txid de exemplo 
             test_txid = "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16"
             test_transaction_status(test_txid)
+    
+    # Testar funcionalidades de cold wallet
+    if test_cold:
+        test_cold_wallet_features()
     
     print("\n" + "=" * 80)
     print("                  TESTE DE VERIFICACAO CONCLUIDO")

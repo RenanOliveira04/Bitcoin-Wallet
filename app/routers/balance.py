@@ -1,12 +1,65 @@
-from fastapi import APIRouter, HTTPException, Path
-from app.services.blockchain_service import get_balance, get_utxos
+from fastapi import APIRouter, HTTPException, Path, Query
+from app.services.blockchain_service import get_balance, get_utxos, is_offline_mode
 from app.dependencies import get_network
 from app.models.balance_models import BalanceModel
 import logging
+from bitcoinlib.keys import Address
+from typing import Optional
+import re
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+def validate_bitcoin_address(address: str, network: str) -> bool:
+    """
+    Valida se um endereço Bitcoin é válido para a rede especificada.
+    
+    Args:
+        address (str): Endereço Bitcoin a ser validado
+        network (str): Rede Bitcoin ('mainnet' ou 'testnet')
+        
+    Returns:
+        bool: True se o endereço for válido, False caso contrário
+    """
+    try:
+        if network == "testnet":
+            if re.match(r'^[mn][a-km-zA-HJ-NP-Z1-9]{25,34}$', address):
+                return True
+            # SegWit (P2SH)
+            if re.match(r'^2[a-km-zA-HJ-NP-Z1-9]{25,34}$', address):
+                return True
+            # Native SegWit (P2WPKH)
+            if re.match(r'^tb1[a-zA-HJ-NP-Z0-9]{39,59}$', address):
+                return True
+        else:  # mainnet
+            if re.match(r'^1[a-km-zA-HJ-NP-Z1-9]{25,34}$', address):
+                return True
+            # SegWit (P2SH)
+            if re.match(r'^3[a-km-zA-HJ-NP-Z1-9]{25,34}$', address):
+                return True
+            # Native SegWit (P2WPKH)
+            if re.match(r'^bc1[a-zA-HJ-NP-Z0-9]{39,59}$', address):
+                return True
+        
+        try:
+            addr = Address.import_address(address)
+            if network == "testnet":
+                return addr.is_testnet
+            return not addr.is_testnet
+        except Exception as e:
+            logger.debug(f"Falha na validação com bitcoinlib: {str(e)}")
+            
+        # Validação básica para endereços especiais
+        if network == "testnet" and address.startswith("tb1"):
+            return True
+        if network == "mainnet" and address.startswith("bc1"):
+            return True
+            
+        return False
+    except Exception as e:
+        logger.error(f"Erro na validação de endereço: {str(e)}")
+        return False
 
 @router.get("/{address}", 
             summary="Consulta saldo e UTXOs de um endereço",
@@ -75,25 +128,66 @@ endereço. No modelo UTXO do Bitcoin:
             """,
             response_model=BalanceModel,
             responses={
-                404: {"description": "Endereço não encontrado ou formato inválido"},
+                400: {"description": "Endereço inválido"},
+                404: {"description": "Endereço não encontrado"},
+                429: {"description": "Muitas requisições"},
                 500: {"description": "Erro ao consultar a blockchain"}
             })
-def get_balance_utxos(address: str = Path(..., description="Endereço Bitcoin a ser consultado")):
+def get_balance_utxos(
+    address: str = Path(..., description="Endereço Bitcoin a ser consultado"),
+    network: Optional[str] = None,
+    force_offline: bool = Query(False, description="Forçar modo offline (usar apenas cache local)")
+):
     """
     Consulta o saldo e UTXOs disponíveis para um endereço Bitcoin.
     
     - **address**: Endereço Bitcoin no formato compatível com a rede
+    - **network**: Rede Bitcoin ('mainnet' ou 'testnet'). Se não especificado,
+                  usa a rede configurada no ambiente.
+    - **force_offline**: Se True, usa apenas dados do cache local sem consultar a blockchain
     
     Retorna o saldo total e a lista de UTXOs disponíveis.
     """
     try:
-        network = get_network()
-        balance_data = get_balance(address, network)
-        utxos_data = get_utxos(address, network)
+        # Determinar a rede
+        network = network or get_network()
+        
+        # Verificar modo offline
+        offline_mode = force_offline or is_offline_mode()
+        if offline_mode:
+            logger.info(f"[BALANCE] Operando em modo offline para o endereço {address}")
+        
+        # Validar o endereço
+        if not validate_bitcoin_address(address, network):
+            logger.warning(f"[BALANCE] Endereço inválido ou incompatível: {address} para rede {network}")
+            # No modo offline, continuamos mesmo com endereços inválidos para testes
+            if not offline_mode:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Endereço Bitcoin inválido para a rede {network}"
+                )
+        
+        # Obter dados da blockchain ou cache local
+        balance_data = get_balance(address, network, offline_mode)
+        utxos_data = get_utxos(address, network, offline_mode)
+        
+        # Validar se o endereço existe (apenas em modo online)
+        if not offline_mode and balance_data["confirmed"] == 0 and balance_data["unconfirmed"] == 0 and not utxos_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Endereço não encontrado ou sem transações"
+            )
+        
         return BalanceModel(
             balance=balance_data['confirmed'],
             utxos=utxos_data
         )
+        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Erro ao consultar saldo: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Erro ao consultar saldo: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao consultar saldo: {str(e)}"
+        )
