@@ -129,7 +129,7 @@ def test_generate_key_file(key_data, network="testnet"):
         }
         
         # Chamada à API para gerar o arquivo
-        response = requests.post(f"{BASE_URL}/keys/export", json=params)
+        response = requests.post(f"{BASE_URL}/keys/export-file", json=params)
         
         if response.status_code != 200:
             print(f"❌ Erro na resposta ({response.status_code}): {response.text}")

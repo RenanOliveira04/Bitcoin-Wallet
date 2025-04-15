@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 from datetime import datetime
-from app.services.key_generator import KeyGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -172,28 +171,18 @@ def export_key_to_file(
 @router.post("/generate", response_model=KeyResponse)
 async def generate_keys(request: KeyRequest, network: str = Depends(get_network)):
     try:
-        method = request.method
-        passphrase = request.passphrase
+        # Definir valores padrão se não fornecidos
+        if not request.network:
+            request.network = network
         
-        if request.network:
-            network = request.network
-            
-        key_generator = KeyGenerator(network)
-        
-        if method == "entropy":
-            return key_generator.generate_from_entropy()
-        elif method == "bip39":
-            return key_generator.generate_from_bip39(passphrase)
-        elif method == "bip32":
-            return key_generator.generate_from_bip32(passphrase)
-        else:
-            raise HTTPException(status_code=400, detail=f"Método de geração de chaves inválido: {method}")
+        # Usar a função existente do key_service em vez de KeyGenerator
+        return generate_key(request)
             
     except Exception as e:
         logger.error(f"Erro ao gerar chaves: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro ao gerar chaves: {str(e)}")
 
-@router.post("/export", response_model=KeyExportResponse)
+@router.post("/export-file", response_model=KeyExportResponse)
 async def export_keys(request: KeyExportRequest):
     try:
         # Valida dados de entrada

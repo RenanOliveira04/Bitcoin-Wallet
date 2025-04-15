@@ -253,9 +253,9 @@ def test_key_export():
     }
     
     try:
-        # Faz a requisição para o endpoint
+        # Faz a requisição para o endpoint correto
         response = requests.post(
-            f"{BASE_URL}/keys/export", 
+            f"{BASE_URL}/keys/export-file", 
             json=test_data
         )
         
