@@ -52,7 +52,6 @@ def test_online_mode(address=TEST_ADDRESS):
     print(f"Consultando saldo para {address} em modo online...")
     response = requests.get(f"{BASE_URL}/balance/{address}")
     
-    # Aceitar status 200 (OK) ou 404 (Endereço não encontrado) como válidos
     if response.status_code != 200 and response.status_code != 404:
         print(f"❌ Erro na resposta ({response.status_code}): {response.text}")
         return False
@@ -68,7 +67,6 @@ def test_online_mode(address=TEST_ADDRESS):
     except:
         print("❌ Erro ao decodificar resposta JSON")
     
-    # Verificar existência do cache
     cache_file = CACHE_DIR / "blockchain_cache.json"
     if cache_file.exists():
         print(f"✅ Cache criado em: {cache_file}")
@@ -106,7 +104,6 @@ def test_offline_mode():
     print(f"Consultando saldo para {TEST_ADDRESS} em modo offline...")
     response = requests.get(f"{BASE_URL}/balance/{TEST_ADDRESS}?force_offline=true")
     
-    # Em modo offline, qualquer resposta entre 200-299 é válida
     if response.status_code < 200 or response.status_code >= 300:
         print(f"❌ Erro na resposta ({response.status_code}): {response.text}")
         return False
@@ -141,7 +138,6 @@ def test_data_consistency():
     
     data_online = response_online.json()
     
-    # Dados offline
     print("Consultando dados offline...")
     response_offline = requests.get(f"{BASE_URL}/balance/{TEST_ADDRESS}?force_offline=true")
     
@@ -151,7 +147,6 @@ def test_data_consistency():
     
     data_offline = response_offline.json()
     
-    # Comparar saldo
     online_balance = data_online.get("balance", 0)
     offline_balance = data_offline.get("balance", 0)
     
@@ -177,7 +172,6 @@ def check_cache_expiration():
     
     cache_file = CACHE_DIR / "blockchain_cache.json"
     if not cache_file.exists():
-        # Se o cache não existe, vamos criar um básico para testar
         print(f"ℹ️ Criando arquivo de cache básico para testes")
         
         cache_data = {
@@ -196,26 +190,21 @@ def check_cache_expiration():
             json.dump(cache_data, f)
     
     try:
-        # Ler o cache
         with open(cache_file, "r") as f:
             cache_data = json.load(f)
             
-        # Verificar se as chaves existem
         balance_key = f"balance_testnet_{TEST_ADDRESS}"
         if balance_key not in cache_data.get("timestamps", {}):
             print(f"❌ Chave de timestamp para saldo não encontrada no cache")
             cache_data.setdefault("timestamps", {})[balance_key] = time.time()
             
-        # Modificar o timestamp para simular expiração (10 minutos atrás)
         cache_data["timestamps"][balance_key] = time.time() - 600
         
-        # Salvar o cache
         with open(cache_file, "w") as f:
             json.dump(cache_data, f)
             
         print(f"✅ Cache modificado: timestamp de saldo definido para 10 minutos atrás")
         
-        # Testar se o modo offline usa o cache mesmo expirado
         print("\nConsultando em modo offline (deve usar o cache expirado)...")
         response_offline = requests.get(f"{BASE_URL}/balance/{TEST_ADDRESS}?force_offline=true")
         
@@ -235,7 +224,6 @@ def test_key_export():
     """
     print("\n🔑 Testando exportação de chaves para arquivo...")
     
-    # Dados de teste
     test_data = {
         "private_key": "cVt21DrXEWUcACZKpS8pLqG92sxanuXEDL3YKLRrxBaAEqhwYjG4",
         "public_key": "0308ea9666139527a8c1dd94ce4f071fd23c8b350c5a4bb33748c4ba111faccae0",
@@ -246,25 +234,21 @@ def test_key_export():
     }
     
     try:
-        # Faz a requisição para o endpoint correto
         response = requests.post(
             f"{BASE_URL}/keys/export-file", 
             json=test_data
         )
         
-        # Verifica o código de status
         if response.status_code != 200:
             print(f"❌ Falha ao exportar chaves: {response.status_code}")
             print(f"Detalhes: {response.text}")
             return False
         
-        # Verifica a resposta
         data = response.json()
         if not data.get("success"):
             print(f"❌ Exportação de chaves falhou: {data.get('message')}")
             return False
         
-        # Verifica se o arquivo foi criado
         file_path = data.get("file_path")
         if not os.path.exists(file_path):
             print(f"❌ Arquivo não foi criado em: {file_path}")
@@ -272,7 +256,6 @@ def test_key_export():
         
         print(f"✅ Chaves exportadas com sucesso para: {file_path}")
         
-        # Verificar o conteúdo do arquivo
         with open(file_path, 'r') as f:
             content = f.read()
             if test_data["private_key"] in content and test_data["address"] in content:
@@ -299,40 +282,32 @@ def main():
     if args.address:
         TEST_ADDRESS = args.address
         
-    # Definindo o endereço de teste
     print(f"🔍 Usando endereço de teste: {TEST_ADDRESS}")
     
-    # Executando os testes
     print("\n🧪 Iniciando testes da carteira Bitcoin...")
     
-    # Teste de modo online
     online_success = test_online_mode()
     
-    # Teste de modo offline
     if online_success:
         offline_success = test_offline_mode()
     else:
         print("⚠️ Pulando teste de modo offline devido a falha no teste online")
         offline_success = False
     
-    # Teste de consistência de dados
     if online_success and offline_success:
         consistency_success = test_data_consistency()
     else:
         print("⚠️ Pulando teste de consistência devido a falhas anteriores")
         consistency_success = False
     
-    # Teste de expiração do cache
     if online_success:
         cache_success = check_cache_expiration()
     else:
         print("⚠️ Pulando teste de expiração do cache devido a falha no teste online")
         cache_success = False
         
-    # Teste de exportação de chaves
     export_success = test_key_export()
     
-    # Resumo dos testes
     print("\n📊 Resumo dos testes:")
     print(f"✓ Modo online: {'Sucesso' if online_success else 'Falha'}")
     print(f"✓ Modo offline: {'Sucesso' if offline_success else 'Falha'}")

@@ -14,7 +14,6 @@ import os
 import subprocess
 import time
 
-# Verificar se o diretório principal está no path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
@@ -56,13 +55,11 @@ def run_example():
         print("\n⚠️ Execute o servidor em outro terminal e tente novamente.")
         return
     
-    # Endereço de teste (opcional)
-    test_address = "tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav"  # Endereço de exemplo para testnet
+    test_address = "tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav"
     
     print(f"\n🧪 Executando teste com endereço: {test_address}\n")
     
     try:
-        # Executa o teste
         subprocess.run([
             sys.executable, 
             os.path.join(root_dir, "tests", "test_cold_wallet.py"),

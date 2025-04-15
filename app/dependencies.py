@@ -160,10 +160,8 @@ def setup_logging():
     """Configura o logging da aplicação com base nas configurações do .env"""
     settings = get_settings()
     
-    # Configura o nível de log
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
     
-    # Configura o formato do log
     logging.basicConfig(
         level=log_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -173,7 +171,6 @@ def setup_logging():
         ]
     )
     
-    # Configurar para não logar informações sensíveis
     logger = logging.getLogger("bitcoin-wallet")
     return logger
 

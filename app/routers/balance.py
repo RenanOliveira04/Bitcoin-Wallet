@@ -50,7 +50,6 @@ def validate_bitcoin_address(address: str, network: str) -> bool:
         except Exception as e:
             logger.debug(f"Falha na validação com bitcoinlib: {str(e)}")
             
-        # Validação básica para endereços especiais
         if network == "testnet" and address.startswith("tb1"):
             return True
         if network == "mainnet" and address.startswith("bc1"):
@@ -149,29 +148,23 @@ def get_balance_utxos(
     Retorna o saldo total e a lista de UTXOs disponíveis.
     """
     try:
-        # Determinar a rede
         network = network or get_network()
         
-        # Verificar modo offline
         offline_mode = force_offline or is_offline_mode()
         if offline_mode:
             logger.info(f"[BALANCE] Operando em modo offline para o endereço {address}")
         
-        # Validar o endereço
         if not validate_bitcoin_address(address, network):
             logger.warning(f"[BALANCE] Endereço inválido ou incompatível: {address} para rede {network}")
-            # No modo offline, continuamos mesmo com endereços inválidos para testes
             if not offline_mode:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Endereço Bitcoin inválido para a rede {network}"
                 )
         
-        # Obter dados da blockchain ou cache local
         balance_data = get_balance(address, network, offline_mode)
         utxos_data = get_utxos(address, network, offline_mode)
         
-        # Validar se o endereço existe (apenas em modo online)
         if not offline_mode and balance_data["confirmed"] == 0 and balance_data["unconfirmed"] == 0 and not utxos_data:
             raise HTTPException(
                 status_code=404,

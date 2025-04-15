@@ -55,7 +55,6 @@ def build_transaction(tx_request: TransactionRequest, network: str) -> Transacti
                     outputs.append(o)
             tx_request.outputs = outputs
         
-        # Construir a transação
         tx_builder = BitcoinLibBuilder()
         response = tx_builder.build(tx_request, network)
         

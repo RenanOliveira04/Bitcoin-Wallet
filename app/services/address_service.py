@@ -32,10 +32,8 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
         bitcoinlib_network = get_bitcoinlib_network(network)
         logger.info(f"[ADDRESS] Gerando endereço {address_format} para chave privada {mask_sensitive_data(private_key)}")
         
-        # Identificar tipo de chave e carregar corretamente
         key = None
         for method in [
-            # Tentar diferentes métodos de carregamento
             lambda: Key(private_key, network=bitcoinlib_network),
             lambda: HDKey.from_wif(private_key, network=bitcoinlib_network),
             lambda: HDKey(private_key, network=bitcoinlib_network),
@@ -50,7 +48,6 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
         if not key:
             raise ValueError(f"Não foi possível carregar a chave privada. Formato inválido ou incompatível.")
         
-        # Gerar endereço conforme formato solicitado
         if address_format == "p2pkh":
             try:
                 address = key.address()
@@ -60,13 +57,11 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
                 
         elif address_format == "p2sh":
             try:
-                # Tentar diferentes métodos para P2SH
                 if hasattr(key, 'address_p2sh'):
                     address = key.address_p2sh()
                 elif hasattr(key, 'p2sh_address'):
                     address = key.p2sh_address()
                 else:
-                    # Fallback para P2PKH
                     logger.warning("[ADDRESS] P2SH não disponível, usando P2PKH como fallback")
                     address = key.address()
                     address_format = "p2pkh"
@@ -77,7 +72,6 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
                 
         elif address_format == "p2wpkh":
             try:
-                # Tentar diferentes métodos para P2WPKH
                 if hasattr(key, 'address_segwit'):
                     segwit_method = key.address_segwit
                     if callable(segwit_method):
@@ -89,7 +83,6 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
                 elif hasattr(key, 'p2wpkh_address'):
                     address = key.p2wpkh_address()
                 else:
-                    # Fallback para P2PKH
                     logger.warning("[ADDRESS] P2WPKH não disponível, usando P2PKH como fallback")
                     address = key.address()
                     address_format = "p2pkh"
@@ -100,7 +93,6 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
                 
         elif address_format == "p2tr":
             try:
-                # Tentar gerar endereço Taproot
                 if hasattr(key, 'address_taproot'):
                     taproot_method = key.address_taproot
                     if callable(taproot_method):
@@ -108,7 +100,6 @@ def generate_address(private_key: str, address_format: str = "p2wpkh", network: 
                     else:
                         address = taproot_method
                 else:
-                    # Fallback para P2PKH
                     logger.warning("[ADDRESS] P2TR não disponível, usando P2PKH como fallback")
                     address = key.address()
                     address_format = "p2pkh"

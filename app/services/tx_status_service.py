@@ -85,7 +85,6 @@ def _fallback_status(txid: str, network: str, error: str) -> TransactionStatusMo
     else:
         explorer_url = f"https://blockstream.info/testnet/tx/{txid}"
     
-    # Verificar se é uma transação de teste
     if _is_test_transaction(txid):
         return _get_simulated_status(txid, network)
     

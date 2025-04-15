@@ -434,7 +434,6 @@ def test_transaction_signature(tx_data, private_key):
         if tx_hex_field and sign_data[tx_hex_field]:
             tx_hex = sign_data[tx_hex_field]
             print(f"✅ RF5.2: String hexadecimal da transacao exibida")
-            # Verificar tamanho da string hex (deve ser um multiplo de 2)
             if len(tx_hex) % 2 == 0:
                 print(f"✅ Formato da string hexadecimal valido")
             else:
@@ -537,16 +536,9 @@ def test_broadcast_transaction(tx_hex):
             "tx_hex": tx_hex
         }
         
-        # Simulacao apenas - nao enviar de fato para nao gastar fundos reais
-        # response = requests.post(f"{BASE_URL}/broadcast", json=broadcast_request)
-        
-        # Simular resposta - Descomente a linha abaixo em ambiente real
-        # broadcast_data = response.json()
-        
-        # Simular resposta
         broadcast_data = {
             "status": "simulated",
-            "txid": "a" * 64,  # txid simulado
+            "txid": "a" * 64,
             "explorer_url": f"https://blockchair.com/bitcoin/testnet/tx/{'a' * 64}"
         }
         

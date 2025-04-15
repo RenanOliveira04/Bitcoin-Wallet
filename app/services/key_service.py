@@ -203,7 +203,6 @@ def save_key_to_file(key_data: KeyResponse, output_path: str = None) -> str:
             f"Chave Pública: {key_dict['public_key']}",
         ]
         
-        # Adiciona mnemônico e caminho de derivação se existirem
         if key_dict.get('mnemonic'):
             content.append("")
             content.append("FRASE DE RECUPERAÇÃO (MNEMÔNICO):")
@@ -213,7 +212,6 @@ def save_key_to_file(key_data: KeyResponse, output_path: str = None) -> str:
             content.append("")
             content.append(f"Caminho de Derivação: {key_dict['derivation_path']}")
         
-        # Adiciona instruções de recuperação
         content.extend([
             "",
             "INSTRUÇÕES DE RECUPERAÇÃO:",
@@ -224,7 +222,6 @@ def save_key_to_file(key_data: KeyResponse, output_path: str = None) -> str:
             "=== FIM DAS INFORMAÇÕES DA CHAVE ==="
         ])
         
-        # Escreve o conteúdo no arquivo
         with open(output_path, 'w') as f:
             f.write('\n'.join(content))
             

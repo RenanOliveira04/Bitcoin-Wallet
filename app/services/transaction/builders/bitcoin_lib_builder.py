@@ -14,13 +14,12 @@ class BitcoinLibBuilder(TransactionBuilder):
     def build(self, request: TransactionRequest, network: str) -> TransactionResponse:
         logger.info(f"Iniciando construção de transação para rede {network}")
         try:
-            # Criar objetos Input em vez de dicionários
             tx_inputs = []
             for input_tx in request.inputs:
                 tx_input = Input(
                     prev_txid=input_tx.txid,
                     output_n=input_tx.vout,
-                    value=input_tx.value or 0,  # Valor é necessário
+                    value=input_tx.value or 0,  
                     address=input_tx.address,
                     network=network
                 )
@@ -30,7 +29,6 @@ class BitcoinLibBuilder(TransactionBuilder):
                     tx_input.sequence = input_tx.sequence
                 tx_inputs.append(tx_input)
             
-            # Criar objetos Output em vez de dicionários
             tx_outputs = []
             for output in request.outputs:
                 tx_output = Output(
@@ -40,17 +38,15 @@ class BitcoinLibBuilder(TransactionBuilder):
                 )
                 tx_outputs.append(tx_output)
             
-            # Criar transação
             fee = request.fee_rate or 1.0
             tx = Transaction(
                 inputs=tx_inputs,
                 outputs=tx_outputs,
                 network=network,
                 fee=fee,
-                fee_per_kb=int(fee * 1000)  # Converter para fee por KB
+                fee_per_kb=int(fee * 1000)  
             )
             
-            # Calcular a taxa real
             calculated_fee = 0
             if tx.input_total and tx.output_total:
                 calculated_fee = tx.input_total - tx.output_total

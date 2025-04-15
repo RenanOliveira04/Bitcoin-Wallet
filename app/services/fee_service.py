@@ -64,10 +64,8 @@ class FeeEstimator:
     
     def _fallback_estimation(self, network: str) -> Dict[str, Any]:
         """Fornece uma estimativa de fallback quando as APIs falham"""
-        # Taxas tipicamente mais baixas para testnet
         base_fee = 5 if network == "mainnet" else 1
         
-        # Simular pequena variação para parecer realista
         high = max(1, base_fee * 2 + random.uniform(-0.5, 0.5))
         med = max(1, base_fee + random.uniform(-0.3, 0.3))
         low = max(0.5, base_fee / 2 + random.uniform(-0.1, 0.1))
@@ -82,7 +80,6 @@ class FeeEstimator:
             "source": "fallback"
         }
 
-# Singleton para ser usado em toda a aplicação
 fee_estimator = FeeEstimator()
 
 def get_fee_estimate(network: str = "testnet"):

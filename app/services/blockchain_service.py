@@ -61,14 +61,12 @@ class PersistentBlockchainCache:
             O valor armazenado ou None se não encontrado ou expirado
         """
         if key in self._cache:
-            # Usar o timeout normal ou de cold wallet, dependendo do modo
             cache_timeout = get_cache_timeout(cold_wallet=is_offline_mode_enabled())
             
             if ignore_ttl or time.time() - self._timestamps.get(key, 0) < cache_timeout:
                 return self._cache[key]
             elif not ignore_ttl:
                 logger.debug(f"[CACHE] Valor expirado para a chave: {key}")
-                # Não removemos do cache para permitir uso offline com dados expirados
         return None
 
     def set(self, key: str, value: Any):

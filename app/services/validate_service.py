@@ -67,7 +67,6 @@ def validate_transaction(tx_hex: str, network: str = "testnet"):
         
         has_funds, fund_issues, input_sum, output_sum = validate_funds(tx, network)
         
-        # Verificar se a transação parece estar assinada
         is_signed = any(hasattr(inp, 'script_sig') and inp.script_sig for inp in tx.inputs)
         
         details = {
@@ -84,7 +83,6 @@ def validate_transaction(tx_hex: str, network: str = "testnet"):
             "estimated_fee_rate": (input_sum - output_sum) / tx.size if has_funds and input_sum > output_sum and tx.size > 0 else 0
         }
         
-        # Determinar se a transação é válida como um todo
         is_completely_valid = is_valid and has_funds
         
         result = {
@@ -92,7 +90,6 @@ def validate_transaction(tx_hex: str, network: str = "testnet"):
             "details": details
         }
         
-        # Adicionar problemas à resposta se houver
         all_issues = []
         if structure_issues:
             all_issues.extend(structure_issues)
@@ -199,9 +196,8 @@ def validate_funds(tx: Transaction, network: str) -> Tuple[bool, List[str], int,
                     issues.append(f"Input {i} não tem valor definido e endereço não disponível")
         
         if input_sum == 0:
-            # Para testes, vamos assumir que o input é igual ao output + taxa mínima
             if len(issues) > 0 and output_sum > 0:
-                input_sum = output_sum + 1000  # Adicionar taxa mínima simulada
+                input_sum = output_sum + 1000  
                 issues.append("Usando valores simulados para inputs (para teste)")
             else:
                 return False, ["Não foi possível verificar os valores dos inputs"], 0, output_sum

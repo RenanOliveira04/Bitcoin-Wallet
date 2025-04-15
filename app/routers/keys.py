@@ -145,19 +145,15 @@ def export_key_to_file(
     output_path: str = Query(None, description="Caminho opcional para salvar o arquivo de chaves")
 ):
     try:
-        # Definir valores padrão se não fornecidos
         if not request.network:
             request.network = get_network()
         if not request.key_format:
             request.key_format = get_default_key_type()
         
-        # Gerar a chave
         key_result = generate_key(request)
         
-        # Salvar a chave em arquivo
         file_path = save_key_to_file(key_result, output_path)
         
-        # Retornar o arquivo como download
         return FileResponse(
             path=file_path,
             filename=os.path.basename(file_path),
@@ -171,11 +167,9 @@ def export_key_to_file(
 @router.post("/generate", response_model=KeyResponse)
 async def generate_keys(request: KeyRequest, network: str = Depends(get_network)):
     try:
-        # Definir valores padrão se não fornecidos
         if not request.network:
             request.network = network
         
-        # Usar a função existente do key_service em vez de KeyGenerator
         return generate_key(request)
             
     except Exception as e:
@@ -185,31 +179,25 @@ async def generate_keys(request: KeyRequest, network: str = Depends(get_network)
 @router.post("/export-file", response_model=KeyExportResponse)
 async def export_keys(request: KeyExportRequest):
     try:
-        # Valida dados de entrada
         if not request.private_key or not request.address:
             raise HTTPException(status_code=400, detail="Chave privada e endereço são obrigatórios")
         
-        # Define formato de arquivo (apenas txt suportado por enquanto)
         file_format = request.file_format.lower() if request.file_format else "txt"
         if file_format != "txt":
             logger.warning(f"Formato de arquivo {file_format} não suportado. Usando txt.")
             file_format = "txt"
         
-        # Define a rede
         network = request.network if request.network else "testnet"
         
-        # Cria diretório se não existir
         user_home = os.path.expanduser("~")
         keys_dir = os.path.join(user_home, ".bitcoin-wallet", "keys")
         os.makedirs(keys_dir, exist_ok=True)
         
-        # Gera nome do arquivo com timestamp e primeiros caracteres do endereço
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         address_prefix = request.address[:8]
         filename = f"bitcoin_{network}_{address_prefix}_{timestamp}.{file_format}"
         file_path = os.path.join(keys_dir, filename)
         
-        # Prepara conteúdo do arquivo
         content = "====== BITCOIN WALLET - INFORMAÇÕES DA CARTEIRA ======\n\n"
         content += "AVISO: Este arquivo contém informações sensíveis. Mantenha-o seguro.\n"
         content += "       Quem tiver acesso à chave privada pode movimentar seus fundos!\n\n"
@@ -224,13 +212,11 @@ async def export_keys(request: KeyExportRequest):
         content += "2. Faça cópias de backup em locais seguros.\n"
         content += "3. Nunca compartilhe sua chave privada com ninguém.\n"
         
-        # Escreve o conteúdo no arquivo
         with open(file_path, 'w') as f:
             f.write(content)
         
         logger.info(f"Chaves exportadas com sucesso para {file_path}")
         
-        # Retorna resposta
         return KeyExportResponse(
             success=True,
             file_path=file_path,

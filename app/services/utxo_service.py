@@ -56,9 +56,7 @@ def create_transaction(inputs: List[Dict[str, Any]], outputs: List[Dict[str, Any
     try:
         bitcoinlib_network = get_bitcoinlib_network(network)
         logger.info(f"[UTXO] Construindo transação com {len(inputs)} inputs e {len(outputs)} outputs")
-        
-        # Mais código aqui...
-        
+                
     except Exception as e:
         logger.error(f"[UTXO] Erro ao construir transação: {str(e)}")
         raise ValueError(f"Erro ao construir transação: {str(e)}")
@@ -123,11 +121,10 @@ def build_transaction(request: TransactionRequest, network: str) -> TransactionR
         logger.error(f"Erro ao construir transação: {str(e)}")
         logger.error(traceback.format_exc())
         
-        # Criar uma transação simulada para evitar falha completa
         return _create_fallback_transaction(network)
 
 def _create_fallback_transaction(network: str) -> TransactionResponse:
-    # Implemente a lógica para criar uma transação simulada com base na rede
+    # Implementando a lógica para criar uma transação simulada com base na rede
     # Esta é uma implementação básica e pode ser melhorada conforme necessário
     tx_dummy = Transaction(network=network)
     return TransactionResponse(

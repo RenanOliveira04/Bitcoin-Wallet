@@ -45,15 +45,13 @@ def sign_transaction(tx_hex: str, private_key: str, network: str = "testnet") ->
         tx = Transaction.parse_hex(tx_hex)
         logger.debug(f"Transação carregada, inputs: {len(tx.inputs)}, outputs: {len(tx.outputs)}")
         
-        # Salvar o estado antes da assinatura para comparar depois
         original_tx_hex = tx.raw_hex()
         
         tx.sign(key.private_byte)
         logger.debug("Transação assinada com sucesso")
         
-        # Verificar se a transação foi alterada (assinada)
         is_signed = original_tx_hex != tx.raw_hex()
-        signatures_count = len(tx.inputs)  # Assume que todos os inputs foram assinados
+        signatures_count = len(tx.inputs)  
         
         return {
             "tx_hex": tx.raw_hex(),

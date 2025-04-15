@@ -46,17 +46,10 @@ A API Bitcoin Wallet pode ser configurada através do arquivo `.env`. Este arqui
 
 ### Configurações Básicas
 ```
-# Valores possíveis: testnet, mainnet
 NETWORK=testnet
-
-# Valores possíveis: p2pkh, p2sh, p2wpkh, p2tr
 DEFAULT_KEY_TYPE=p2wpkh
-
-# Valores possíveis: DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_LEVEL=INFO
 LOG_FILE=bitcoin-wallet.log
-
-# Tempo de cache em segundos
 CACHE_TIMEOUT=300
 ```
 
@@ -64,11 +57,8 @@ CACHE_TIMEOUT=300
 Estas configurações podem conter informações sensíveis como URLs, chaves de API, etc., e devem ser mantidas em segurança:
 
 ```
-# URLs das APIs (não commitar valores reais)
 BLOCKCHAIN_API_URL=https://api.blockchair.com/bitcoin
 MEMPOOL_API_URL=https://mempool.space/api
-
-# Credenciais de API (se aplicável)
 API_KEY=sua_chave_api
 API_SECRET=seu_segredo_api
 ```
@@ -83,14 +73,9 @@ API_SECRET=seu_segredo_api
 O Bitcoin Wallet pode ser usado como cold wallet, funcionando sem conexão constante com a internet.
 
 ```
-# Habilitar modo offline por padrão
 OFFLINE_MODE=true
-
-# Diretório para armazenamento de cache (padrão é ~/.bitcoin-wallet/cache)
 CACHE_DIR=/caminho/personalizado/cache
-
-# Tempo de expiração do cache em segundos (defina um valor alto para cold wallet)
-CACHE_TIMEOUT=2592000  # 30 dias
+CACHE_TIMEOUT=2592000
 ```
 
 ## Uso
@@ -197,19 +182,16 @@ Este projeto foi projetado para funcionar como uma ferramenta de teste de transa
 
 1. **Preparação do cache**:
    ```bash
-   # Consultar endereços enquanto online para preencher o cache
    curl "http://localhost:8000/api/balance/tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav"
    ```
 
 2. **Testar o modo offline**:
    ```bash
-   # Desconectar da internet ou usar o parâmetro force_offline
    curl "http://localhost:8000/api/balance/tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav?force_offline=true"
    ```
 
 3. **Verificar o cache persistente**:
    ```bash
-   # O cache é armazenado em ~/.bitcoin-wallet/cache
    ls -la ~/.bitcoin-wallet/cache
    ```
 
