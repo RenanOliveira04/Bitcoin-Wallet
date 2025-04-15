@@ -105,17 +105,83 @@ uvicorn app.main:app --reload
 http://localhost:8000/redoc
 ```
 
-3. Execute os testes:
+## Testes
+
+O projeto inclui scripts de teste abrangentes para garantir que todas as funcionalidades estejam operando corretamente.
+
+### Teste Completo da API
+
 ```bash
-# Opção 1: Modo interativo
+# Executar o teste interativo completo
 python tests/test_api.py
 
-# Opção 2: Especificando rede e formato de chave
+# Especificando rede e formato de chave
 python tests/test_api.py testnet p2wpkh
-
-# Opção 3: Usar mainnet
-python tests/test_api.py mainnet p2tr
 ```
+
+Este teste verifica todas as funcionalidades da API, incluindo:
+- Geração de chaves e endereços
+- Consulta de saldo e UTXOs
+- Estimativa de taxas
+- Construção, assinatura e validação de transações
+- Simulação de broadcast (sem transmitir)
+- Consulta de status de transações
+
+### Teste Específico da Cold Wallet
+
+```bash
+# Teste básico da cold wallet
+python tests/test_cold_wallet.py
+
+# Usando um endereço personalizado
+python tests/test_cold_wallet.py --address seu_endereco_bitcoin --network testnet
+```
+
+Este teste verifica especificamente as funcionalidades de cold wallet:
+1. **Modo Online**: Consulta de saldo e criação de cache
+2. **Modo Offline**: Consulta usando apenas cache local
+3. **Consistência de Dados**: Verificação de consistência entre modos online e offline
+4. **Expiração de Cache**: Verificação se o modo offline ignora a expiração do cache
+5. **Exportação de Chaves**: Teste da funcionalidade de exportação de chaves para arquivo
+
+### Como Executar os Testes
+
+1. Certifique-se de que o servidor esteja rodando:
+```bash
+uvicorn app.main:app --reload
+```
+
+2. Em outro terminal, execute os testes:
+```bash
+python tests/test_api.py
+```
+
+3. Para testar apenas a funcionalidade de cold wallet:
+```bash
+python tests/test_cold_wallet.py
+```
+
+### Resolução de Problemas Comuns nos Testes
+
+1. **Servidor não está respondendo**
+   - Verifique se o servidor está rodando (uvicorn app.main:app)
+   - Confirme se a porta 8000 está disponível e não bloqueada por firewall
+
+2. **Erro 404 ao consultar endereço**
+   - Este não é um erro real se o endereço ainda não tiver transações
+   - Para um teste completo, envie alguns fundos para o endereço de teste (em testnet)
+
+3. **Erro nos imports dos testes**
+   - Certifique-se de executar os testes a partir do diretório raiz do projeto
+   - Verifique se todas as dependências estão instaladas
+
+4. **Testes ficam presos ou travados**
+   - Os testes contêm timeouts para evitar bloqueios indefinidos
+   - Se os testes travarem, verifique a conectividade de rede e se o servidor está respondendo
+
+5. **Exportação de chaves falha**
+   - Verifique as permissões de escrita no diretório ~/.bitcoin-wallet/keys
+   - Garanta que o diretório exista ou tenha permissão para ser criado
 
 ## Modo Cold Wallet
 

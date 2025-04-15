@@ -2,13 +2,14 @@
 """
 Script de teste para funcionalidades de cold wallet (modo offline e cache persistente)
 
-Este script testa as funcionalidades específicas da cold wallet, verificando:
-1. Armazenamento do cache persistente
-2. Acesso aos dados em modo offline
-3. Consistência dos dados entre online e offline
+Este script verifica:
+- Armazenamento do cache persistente 
+- Acesso aos dados em modo offline
+- Consistência dos dados entre online e offline
+- Exportação de chaves para arquivo
 
-Para usar:
-python tests/test_cold_wallet.py
+Uso:
+python tests/test_cold_wallet.py [--address ENDEREÇO] [--network REDE]
 """
 
 import requests
@@ -21,7 +22,7 @@ import sys
 
 # Configurações
 BASE_URL = "http://localhost:8000/api"
-TEST_ADDRESS = "tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav"  # Endereço de teste
+TEST_ADDRESS = "tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav"
 CACHE_DIR = Path.home() / ".bitcoin-wallet" / "cache"
 
 def print_header(title):
@@ -43,8 +44,8 @@ def pause_for_demo(message="Pressione Enter para continuar..."):
 def test_online_mode(address=TEST_ADDRESS):
     """
     Testa o modo online da aplicação.
-    1. Consulta o endereço no blockchain
-    2. Verifica se o cache foi criado ou atualizado
+    - Consulta o endereço no blockchain
+    - Verifica se o cache foi criado ou atualizado
     """
     print_section("1. CONSULTA ONLINE (CRIAÇÃO DE CACHE)")
     
@@ -60,7 +61,6 @@ def test_online_mode(address=TEST_ADDRESS):
         print(f"ℹ️ Endereço sem transações (404): {response.json().get('detail', 'Endereço não encontrado')}")
         print("ℹ️ Para um teste completo, envie alguns fundos para o endereço de teste")
         
-    data = None
     try:
         data = response.json()
         print("Resposta da API:")
@@ -68,7 +68,7 @@ def test_online_mode(address=TEST_ADDRESS):
     except:
         print("❌ Erro ao decodificar resposta JSON")
     
-    # Verificar existência do cache mesmo se o endereço não foi encontrado
+    # Verificar existência do cache
     cache_file = CACHE_DIR / "blockchain_cache.json"
     if cache_file.exists():
         print(f"✅ Cache criado em: {cache_file}")
@@ -78,7 +78,6 @@ def test_online_mode(address=TEST_ADDRESS):
                 cache_data = json.load(f)
                 print(f"✅ Cache contém {len(cache_data.get('cache', {}))} entradas")
                 
-                # Verificar se os dados do endereço estão no cache
                 balance_key = f"balance_testnet_{address}"
                 utxos_key = f"utxos_testnet_{address}"
                 
@@ -92,7 +91,7 @@ def test_online_mode(address=TEST_ADDRESS):
                 else:
                     print(f"❌ Dados de UTXOs não encontrados no cache")
                 
-                return True  # Cache existe, consideramos o teste como bem-sucedido
+                return True
         except Exception as e:
             print(f"❌ Erro ao ler cache: {str(e)}")
             return False
@@ -137,7 +136,6 @@ def test_data_consistency():
     
     if response_online.status_code == 404:
         print(f"ℹ️ Endereço sem transações (404): {response_online.json().get('detail', 'Endereço não encontrado')}")
-        # Se o endereço não for encontrado, não podemos testar consistência
         print("ℹ️ Pulando teste de consistência por falta de dados")
         return True
     
@@ -182,7 +180,6 @@ def check_cache_expiration():
         # Se o cache não existe, vamos criar um básico para testar
         print(f"ℹ️ Criando arquivo de cache básico para testes")
         
-        # Dados básicos do cache
         cache_data = {
             "cache": {
                 f"balance_testnet_{TEST_ADDRESS}": {"confirmed": 0, "unconfirmed": 0},
@@ -199,30 +196,26 @@ def check_cache_expiration():
             json.dump(cache_data, f)
     
     try:
-        # Manipular o timestamp para simular expiração
+        # Ler o cache
         with open(cache_file, "r") as f:
             cache_data = json.load(f)
-        
-        # Identificar chaves de cache para o endereço de teste
+            
+        # Verificar se as chaves existem
         balance_key = f"balance_testnet_{TEST_ADDRESS}"
-        
-        # Garantir que a chave existe, mesmo com dados vazios
-        if balance_key not in cache_data.get("cache", {}):
-            cache_data.setdefault("cache", {})[balance_key] = {"confirmed": 0, "unconfirmed": 0}
-        
         if balance_key not in cache_data.get("timestamps", {}):
+            print(f"❌ Chave de timestamp para saldo não encontrada no cache")
             cache_data.setdefault("timestamps", {})[balance_key] = time.time()
-        
-        # Definir timestamp para 10 minutos atrás (expirado)
+            
+        # Modificar o timestamp para simular expiração (10 minutos atrás)
         cache_data["timestamps"][balance_key] = time.time() - 600
         
-        # Salvar cache modificado
+        # Salvar o cache
         with open(cache_file, "w") as f:
             json.dump(cache_data, f)
             
-        print("✅ Cache modificado: timestamp de saldo definido para 10 minutos atrás")
+        print(f"✅ Cache modificado: timestamp de saldo definido para 10 minutos atrás")
         
-        # Consultar em modo offline (deve usar o cache expirado)
+        # Testar se o modo offline usa o cache mesmo expirado
         print("\nConsultando em modo offline (deve usar o cache expirado)...")
         response_offline = requests.get(f"{BASE_URL}/balance/{TEST_ADDRESS}?force_offline=true")
         
@@ -279,7 +272,7 @@ def test_key_export():
         
         print(f"✅ Chaves exportadas com sucesso para: {file_path}")
         
-        # Opcional: Ler o conteúdo do arquivo para verificar
+        # Verificar o conteúdo do arquivo
         with open(file_path, 'r') as f:
             content = f.read()
             if test_data["private_key"] in content and test_data["address"] in content:
