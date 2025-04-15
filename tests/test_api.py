@@ -80,7 +80,7 @@ def test_generate_keys(network="testnet", key_type="entropy"):
         response = requests.post(f"{BASE_URL}/keys", json={
             "method": key_type, 
             "network": network
-        })
+        }, timeout=10)
         
         if response.status_code != 200:
             print(f"❌ Erro na resposta ({response.status_code}): {response.text}")
@@ -128,38 +128,59 @@ def test_generate_key_file(key_data, network="testnet"):
             "file_format": "txt"  # Podemos testar outros formatos no futuro
         }
         
-        # Chamada à API para gerar o arquivo
+        # Chamada à API alternativa que retorna JSON em vez de arquivo
         response = requests.post(f"{BASE_URL}/keys/export-file", json=params)
         
         if response.status_code != 200:
             print(f"❌ Erro na resposta ({response.status_code}): {response.text}")
             return False
-        
-        # Analisar resposta e verificar o caminho do arquivo
-        export_data = response.json()
-        print("Exportação de Chaves:")
-        print(json.dumps(export_data, indent=2))
-        
-        if "file_path" in export_data:
-            file_path = export_data["file_path"]
             
-            # Verificar se o arquivo foi criado
-            if os.path.exists(file_path):
-                print(f"✅ RF1.2: Arquivo de chaves gerado com sucesso em: {file_path}")
+        # Verificar se temos um JSON válido ou conteúdo de arquivo
+        try:
+            # Tentar decodificar como JSON
+            export_data = response.json()
+            print("Exportação de Chaves:")
+            print(json.dumps(export_data, indent=2))
+            
+            if "file_path" in export_data:
+                file_path = export_data["file_path"]
                 
-                # Verificar conteúdo do arquivo
-                with open(file_path, 'r') as file:
-                    content = file.read()
-                    if key_data.get("private_key") in content and key_data.get("address") in content:
-                        print(f"✅ Conteúdo do arquivo contém as informações corretas")
-                    else:
-                        print(f"❌ Conteúdo do arquivo não contém todas as informações esperadas")
+                # Verificar se o arquivo foi criado
+                if os.path.exists(file_path):
+                    print(f"✅ RF1.2: Arquivo de chaves gerado com sucesso em: {file_path}")
+                    
+                    # Verificar conteúdo do arquivo
+                    with open(file_path, 'r') as file:
+                        content = file.read()
+                        if key_data.get("private_key") in content and key_data.get("address") in content:
+                            print(f"✅ Conteúdo do arquivo contém as informações corretas")
+                        else:
+                            print(f"❌ Conteúdo do arquivo não contém todas as informações esperadas")
+                else:
+                    print(f"❌ RF1.2: Arquivo de chaves não foi encontrado em: {file_path}")
+                    return False
             else:
-                print(f"❌ RF1.2: Arquivo de chaves não foi encontrado em: {file_path}")
+                print(f"❌ RF1.2: Caminho do arquivo não retornado na resposta")
                 return False
-        else:
-            print(f"❌ RF1.2: Caminho do arquivo não retornado na resposta")
-            return False
+                
+        except requests.exceptions.JSONDecodeError:
+            # Se não for JSON, podemos estar recebendo o arquivo diretamente
+            content_disposition = response.headers.get('Content-Disposition', '')
+            if 'attachment' in content_disposition:
+                filename = content_disposition.split('filename=')[1].strip('"')
+                print(f"✅ RF1.2: Arquivo de chaves recebido diretamente: {filename}")
+                
+                # O conteúdo do arquivo está em response.content
+                content = response.text
+                if key_data.get("private_key") in content and key_data.get("address") in content:
+                    print(f"✅ Conteúdo do arquivo contém as informações corretas")
+                else:
+                    print(f"❌ Conteúdo do arquivo não contém todas as informações esperadas")
+                    
+                return True
+            else:
+                print(f"❌ RF1.2: Resposta não é JSON nem arquivo")
+                return False
         
         pause_for_demo()
         return True
@@ -602,11 +623,11 @@ def test_cold_wallet_features():
     """Testa funcionalidades específicas de cold wallet"""
     print_section("9. FUNCIONALIDADES DE COLD WALLET")
     
-    from tests.test_cold_wallet import test_online_mode, test_offline_mode, test_data_consistency
+    from test_cold_wallet import test_online_mode, test_offline_mode, test_data_consistency, TEST_ADDRESS
     
     # Testar modo online
     print("Testando modo online e criação de cache...")
-    online_success = test_online_mode()
+    online_success = test_online_mode(TEST_ADDRESS)
     
     # Testar modo offline
     print("\nTestando modo offline...")
