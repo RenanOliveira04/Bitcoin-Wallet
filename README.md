@@ -157,6 +157,50 @@ A aplicação inclui endpoints de health check e métricas:
 - `GET /api/health`: Status do serviço
 - `GET /api/metrics`: Métricas do sistema
 
+## Testes Unitários
+
+O projeto utiliza `pytest` para testes unitários e `pytest-cov` para cobertura de código. Os testes cobrem os principais serviços e endpoints da aplicação.
+
+### Estrutura de Testes
+
+- `tests/conftest.py`: Fixtures compartilhadas entre os testes
+- `tests/test_key_service.py`: Testes para o serviço de chaves
+- `tests/test_address_service.py`: Testes para o serviço de endereços
+- `tests/test_blockchain_service.py`: Testes para o serviço de blockchain
+- `tests/test_health_router.py`: Testes para o router de health check
+- `tests/test_api.py`: Testes de integração da API
+- `tests/test_cold_wallet.py`: Testes de funcionalidades de cold wallet
+
+### Executando os Testes
+
+Para executar todos os testes:
+
+```bash
+python -m pytest
+```
+
+Para executar um arquivo de teste específico:
+
+```bash
+python -m pytest tests/test_key_service.py
+```
+
+Para verificar a cobertura de código:
+
+```bash
+python -m pytest --cov=app
+```
+
+Para gerar um relatório HTML de cobertura:
+
+```bash
+python -m pytest --cov=app --cov-report=html
+```
+
+### Implementando Novos Testes
+
+Para implementar novos testes, crie um arquivo com o prefixo `test_` na pasta `tests/` seguindo as convenções do pytest. Use as fixtures disponíveis em `conftest.py` para compartilhar recursos comuns entre testes.
+
 ## Contribuição
 
 1. Faça um fork do projeto
