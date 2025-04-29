@@ -1,0 +1,98 @@
+name: Bitcoin Wallet CI/CD
+
+on:
+  push:
+    branches: [ development, staging, production ]
+  pull_request:
+    branches: [ development, staging, production ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r Bitcoin-Wallet/requirements.txt
+        
+    - name: Run tests
+      run: |
+        cd Bitcoin-Wallet
+        python -m pytest tests/
+        
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+        
+    - name: Install PyInstaller
+      run: pip install pyinstaller
+        
+    - name: Build executable
+      run: |
+        cd Bitcoin-Wallet
+        python build.py
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: bitcoin-wallet-${{ github.ref_name }}
+        path: Bitcoin-Wallet/dist/bitcoin-wallet*
+        
+  deploy-development:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/development'
+    
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: bitcoin-wallet-development
+        
+    - name: Deploy to development
+      run: |
+        echo "Deploying to development environment..."
+        
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+    
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: bitcoin-wallet-staging
+        
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/production'
+    
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: bitcoin-wallet-production
+        
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment..." 
