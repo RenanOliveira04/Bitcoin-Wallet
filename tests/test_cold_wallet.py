@@ -20,7 +20,6 @@ from pathlib import Path
 import argparse
 import sys
 
-# Configurações
 BASE_URL = "http://localhost:8000/api"
 TEST_ADDRESS = "tb1q0qjghu2z6wpz0d0v47wz6su6l26z04r4r38rav"
 CACHE_DIR = Path.home() / ".bitcoin-wallet" / "cache"
@@ -123,7 +122,6 @@ def test_data_consistency():
     """Compara os dados entre modo online e offline para verificar consistência"""
     print_section("3. VERIFICANDO CONSISTÊNCIA DOS DADOS")
     
-    # Dados online
     print("Consultando dados online...")
     response_online = requests.get(f"{BASE_URL}/balance/{TEST_ADDRESS}")
     
@@ -155,7 +153,6 @@ def test_data_consistency():
     else:
         print(f"⚠️ Saldo inconsistente: online={online_balance}, offline={offline_balance}")
     
-    # Comparar UTXOs
     online_utxos = len(data_online.get("utxos", []))
     offline_utxos = len(data_offline.get("utxos", []))
     

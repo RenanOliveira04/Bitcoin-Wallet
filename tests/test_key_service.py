@@ -50,43 +50,37 @@ class TestKeyService:
         assert key_response.public_key is not None
         assert key_response.address is not None
         assert key_response.network == "mainnet"
-        # Chaves privadas da mainnet geralmente começam com 5, K ou L
         assert key_response.private_key.startswith(("5", "K", "L"))
         
     def test_generate_key_with_format(self):
         """Testa geração de chaves com formato específico"""
-        # Teste P2SH
         request = KeyRequest(method="entropy", network="testnet", key_format="p2sh")
         key_response = generate_key(request)
         
         assert key_response is not None
         assert key_response.format == "p2sh"
-        assert key_response.address.startswith("2")  # Prefixo P2SH testnet
+        assert key_response.address.startswith("2") 
         
     def test_generate_mnemonic(self):
         """Testa geração de frase mnemônica"""
         mnemonic = generate_mnemonic()
         
         assert mnemonic is not None
-        assert len(mnemonic.split()) == 12  # BIP39 padrão tem 12 palavras
+        assert len(mnemonic.split()) == 12  
         
     def test_save_key_to_file(self, tmp_path):
         """Testa salvamento de chave em arquivo"""
-        # Criar diretório temporário para teste
         keys_dir = tmp_path / "keys"
         keys_dir.mkdir()
         
-        # Gerar uma chave para testar
         request = KeyRequest(method="entropy", network="testnet")
         key_response = generate_key(request)
         
-        # Salvar a chave em arquivo
         file_path = save_key_to_file(key_response, str(keys_dir / "test_key.txt"))
         
         assert file_path is not None
         assert os.path.exists(file_path)
         
-        # Verificar conteúdo do arquivo
         with open(file_path, 'r') as f:
             content = f.read()
             assert key_response.private_key in content

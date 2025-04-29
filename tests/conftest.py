@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 import tempfile
 
-# Adicionar o diretório raiz ao path para importar os módulos da aplicação
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.models.utxo_models import Input, Output, TransactionRequest

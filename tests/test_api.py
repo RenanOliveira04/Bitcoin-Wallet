@@ -119,25 +119,21 @@ def test_generate_key_file(key_data, network="testnet"):
     try:
         print(f"Testando exportação de chaves para arquivo na rede {network}...")
         
-        # Construir os parâmetros necessários
         params = {
             "private_key": key_data.get("private_key"),
             "public_key": key_data.get("public_key"),
             "address": key_data.get("address"),
             "network": network,
-            "file_format": "txt"  # Podemos testar outros formatos no futuro
+            "file_format": "txt"  
         }
         
-        # Chamada à API alternativa que retorna JSON em vez de arquivo
         response = requests.post(f"{BASE_URL}/keys/export-file", json=params)
         
         if response.status_code != 200:
             print(f"❌ Erro na resposta ({response.status_code}): {response.text}")
             return False
             
-        # Verificar se temos um JSON válido ou conteúdo de arquivo
         try:
-            # Tentar decodificar como JSON
             export_data = response.json()
             print("Exportação de Chaves:")
             print(json.dumps(export_data, indent=2))
@@ -145,11 +141,9 @@ def test_generate_key_file(key_data, network="testnet"):
             if "file_path" in export_data:
                 file_path = export_data["file_path"]
                 
-                # Verificar se o arquivo foi criado
                 if os.path.exists(file_path):
                     print(f"✅ RF1.2: Arquivo de chaves gerado com sucesso em: {file_path}")
                     
-                    # Verificar conteúdo do arquivo
                     with open(file_path, 'r') as file:
                         content = file.read()
                         if key_data.get("private_key") in content and key_data.get("address") in content:
@@ -164,7 +158,6 @@ def test_generate_key_file(key_data, network="testnet"):
                 return False
                 
         except requests.exceptions.JSONDecodeError:
-            # Se não for JSON, podemos estar recebendo o arquivo diretamente
             content_disposition = response.headers.get('Content-Disposition', '')
             if 'attachment' in content_disposition:
                 filename = content_disposition.split('filename=')[1].strip('"')
@@ -259,7 +252,6 @@ def test_balance_utxos(address, network="testnet", test_offline=True):
             if offline_response.status_code == 200:
                 print(f"✅ RF3.4: Modo offline implementado")
                 
-                # Comparar dados
                 offline_data = offline_response.json()
                 if offline_data["balance"] == balance_data["balance"]:
                     print(f"✅ Dados consistentes entre modos online e offline")
@@ -617,15 +609,12 @@ def test_cold_wallet_features():
     
     from test_cold_wallet import test_online_mode, test_offline_mode, test_data_consistency, TEST_ADDRESS
     
-    # Testar modo online
     print("Testando modo online e criação de cache...")
     online_success = test_online_mode(TEST_ADDRESS)
     
-    # Testar modo offline
     print("\nTestando modo offline...")
     offline_success = test_offline_mode()
     
-    # Testar consistência
     print("\nTestando consistência de dados entre online/offline...")
     consistency_success = test_data_consistency()
     
@@ -730,11 +719,8 @@ def main():
                 
                 validation = test_transaction_validation(signed_tx)
                 
-                # Testar broadcast - COMENTADO para nao enviar transacoes reais durante o teste
-                # broadcast = test_broadcast_transaction(signed_tx.get("signed_tx"))
                 broadcast = test_broadcast_transaction(signed_tx.get("signed_tx", "a"*64))
                 
-                # Testar consulta de status - usando txid existente
                 if "txid" in signed_tx:
                     test_transaction_status(signed_tx["txid"])
     else:
@@ -747,7 +733,7 @@ def main():
             "vout": 0,
             "value": 10000000,
             "script": "76a914" + "b" * 40 + "88ac",
-            "address": address  # Adicionando o endereço para completude
+            "address": address  
         }]
         outputs = [{
             "address": address,
@@ -757,13 +743,10 @@ def main():
         tx_data = test_build_transaction(inputs, outputs)
         
         if tx_data and "raw_transaction" in tx_data:
-            # Testar assinatura - nao vai funcionar com dados simulados, mas testa o endpoint
             signed_tx = test_transaction_signature(tx_data, private_key)
             
-            # Testar validacao
             validation = test_transaction_validation(tx_data)
             
-            # Testar broadcast simulado
             broadcast = test_broadcast_transaction(tx_data.get("raw_transaction", "a"*64))
             
             # Testar consulta de status com um txid conhecido

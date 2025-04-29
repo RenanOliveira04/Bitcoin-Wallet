@@ -8,7 +8,6 @@ import os
 import sys
 import uvicorn
 
-# Configuração de logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
