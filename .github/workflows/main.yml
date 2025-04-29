@@ -25,7 +25,7 @@ jobs:
         
     - name: Run tests
       run: |
-        python -m pytest Bitcoin-Wallet/tests/
+        python -m pytest tests/
         
   build:
     needs: test
@@ -45,13 +45,13 @@ jobs:
         
     - name: Build executable
       run: |
-        python Bitcoin-Wallet/build.py
+        python build.py
         
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
         name: bitcoin-wallet-${{ github.ref_name }}
-        path: Bitcoin-Wallet/dist/bitcoin-wallet*
+        path: dist/bitcoin-wallet*
         
   deploy-development:
     needs: build
