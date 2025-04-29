@@ -6,6 +6,7 @@ from app.services.tx_status_service import get_transaction_status
 from app.services.transaction.tx_builder_service import build_transaction
 from app.dependencies import get_network
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,11 @@ Constrói uma transação Bitcoin não assinada com base nos inputs e outputs fo
 }
 ```
 
+## Tipos de Builders:
+
+* **bitcoinlib**: Utiliza a biblioteca bitcoinlib para construir transações (padrão)
+* **bitcoincore**: Utiliza a biblioteca python-bitcoinlib (compatível com Bitcoin Core)
+
 ## Observações:
 
 * A transação retornada NÃO está assinada e precisa ser assinada antes de ser transmitida
@@ -157,21 +163,29 @@ Constrói uma transação Bitcoin não assinada com base nos inputs e outputs fo
             response_model=TransactionResponse)
 def build_tx(
     tx_request: TransactionRequest = Body(..., description="Dados da transação a ser construída"),
-    network: str = Query(None, description="Rede Bitcoin (mainnet ou testnet)")
+    network: str = Query(None, description="Rede Bitcoin (mainnet ou testnet)"),
+    builder_type: Optional[str] = Query("bitcoinlib", description="Tipo de builder a ser utilizado (bitcoinlib ou bitcoincore)")
 ):
     """
     Constrói uma transação Bitcoin não assinada.
     
     - **tx_request**: Detalhes da transação, incluindo inputs e outputs
     - **network**: Rede Bitcoin (mainnet ou testnet)
+    - **builder_type**: Tipo de builder a ser utilizado (bitcoinlib ou bitcoincore)
     
     Retorna a transação raw não assinada em formato hexadecimal.
     """
     try:
         network = network or get_network()
-        logger.info(f"[TX_BUILD] Recebida solicitação para construir transação na rede {network}")
+        logger.info(f"[TX_BUILD] Recebida solicitação para construir transação na rede {network} usando builder {builder_type}")
         
-        result = build_transaction(tx_request, network)
+        # Valida o tipo de builder
+        valid_builders = ["bitcoinlib", "bitcoincore"]
+        if builder_type.lower() not in valid_builders:
+            logger.warning(f"[TX_BUILD] Tipo de builder inválido: {builder_type}. Utilizando bitcoinlib como padrão.")
+            builder_type = "bitcoinlib"
+        
+        result = build_transaction(tx_request, network, builder_type)
         return result
     except Exception as e:
         logger.error(f"[TX_BUILD] Erro ao construir transação: {str(e)}", exc_info=True)

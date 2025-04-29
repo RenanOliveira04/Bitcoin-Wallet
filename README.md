@@ -49,6 +49,8 @@ O projeto possui três ambientes distintos:
 - Geração de endereços em diferentes formatos
 - Consulta de saldo e UTXOs
 - Construção de transações
+  - Suporte a múltiplos formatos de transação
+  - Builders: BitcoinLib e Bitcoin Core (python-bitcoinlib)
 - Estimativa de taxas baseada em condições da mempool
 - Assinatura de transações
 - Validação de transações
@@ -56,6 +58,34 @@ O projeto possui três ambientes distintos:
 - Consulta de status de transações
 - **Modo offline para uso como cold wallet**
 - **Cache persistente de dados da blockchain**
+
+## Builders de Transação
+
+O sistema suporta múltiplos builders para criação de transações:
+
+### BitcoinLibBuilder (padrão)
+- Utiliza a biblioteca `bitcoinlib`
+- Suporte completo a todos os tipos de transações
+- Melhor para uso geral
+
+### BitcoinCoreBuilder
+- Utiliza a biblioteca `python-bitcoinlib`
+- Compatível com Bitcoin Core
+- Recomendado para aplicações que exigem alta compatibilidade com Bitcoin Core
+
+Para selecionar o builder na API:
+```
+POST /api/tx/build?builder_type=bitcoincore
+```
+
+Para usar programaticamente:
+```python
+from app.models.utxo_models import TransactionRequest
+from app.services.transaction import BitcoinCoreBuilder
+
+builder = BitcoinCoreBuilder()
+tx_response = builder.build(request, network="testnet")
+```
 
 ## Requisitos
 
@@ -125,6 +155,22 @@ async function getBalance(address) {
   const response = await fetch(`${API_BASE}/balance/${address}`);
   return response.json();
 }
+
+// Exemplo de construção de transação com Bitcoin Core builder
+async function buildTransaction(inputs, outputs, feeRate) {
+  const response = await fetch(`${API_BASE}/tx/build?builder_type=bitcoincore`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      inputs: inputs,
+      outputs: outputs,
+      fee_rate: feeRate
+    })
+  });
+  return response.json();
+}
 ```
 
 ## Modo Cold Wallet
@@ -170,6 +216,7 @@ O projeto utiliza `pytest` para testes unitários e `pytest-cov` para cobertura 
 - `tests/test_health_router.py`: Testes para o router de health check
 - `tests/test_api.py`: Testes de integração da API
 - `tests/test_cold_wallet.py`: Testes de funcionalidades de cold wallet
+- `tests/test_bitcoin_core_builder.py`: Testes para o builder de transações Bitcoin Core
 
 ### Executando os Testes
 
