@@ -1,11 +1,20 @@
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import keys, addresses, balance, utxo, broadcast, fee, sign, validate, tx
+from app.routers import keys, addresses, balance, utxo, broadcast, fee, sign, validate, tx, health
 from app.dependencies import get_network, setup_logging, get_settings
 import logging
 from fastapi.openapi.utils import get_openapi
+import os
+import sys
 
-logger = setup_logging()
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 settings = get_settings()
 
 api_description = """
@@ -104,16 +113,13 @@ tags_metadata = [
 
 app = FastAPI(
     title="Bitcoin Wallet API",
-    description="API completa para gerenciamento de carteiras Bitcoin, com suporte a diferentes formatos de endereços e operações com transações.",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_tags=tags_metadata,
+    description="API local para gerenciamento de carteiras Bitcoin",
+    version="1.0.0"
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -155,37 +161,34 @@ app.include_router(fee.router, prefix="/api/fee", tags=["Taxas"])
 app.include_router(sign.router, prefix="/api/sign", tags=["Transações"])
 app.include_router(validate.router, prefix="/api/validate", tags=["Transações"])
 app.include_router(tx.router, prefix="/api/tx", tags=["Status"])
+app.include_router(health.router, prefix="/api", tags=["health"])
 
+def resource_path(relative_path):
+    """Obtém o caminho absoluto para recursos empacotados"""
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
-@app.get("/", tags=["Status"], summary="Verifica o status da API", 
-         description="Endpoint de health check que retorna o status atual da API, a rede configurada e outras informações essenciais.")
-def read_root():
-    logger.info("Health check realizado")
-    return {
-        "status": "running",
-        "network": get_network(),
-        "default_key_type": settings.default_key_type,
-        "version": "1.0.0"
-    }
-
-@app.on_event("startup")
-async def startup_event():
-    """Executado quando a aplicação inicia"""
-    logger.info(f"Iniciando API Bitcoin Wallet na rede {get_network()}")
-    logger.info(f"Tipo de chave padrão: {settings.default_key_type}")
-    
-    if settings.blockchain_api_url:
-        logger.info("Blockchain API URL configurada")
-    else:
-        logger.warning("Blockchain API URL não configurada - usando valor padrão")
+def start_server():
+    """Inicia o servidor FastAPI"""
+    try:
+        port = int(os.getenv('PORT', '8000'))
+        logger.info(f"Iniciando servidor na porta {port}")
         
-    if settings.mempool_api_url:
-        logger.info("Mempool API URL configurada")
-    else:
-        logger.warning("Mempool API URL não configurada - usando valor padrão")
+        config = uvicorn.Config(
+            app=app,
+            host="127.0.0.1",  
+            log_level="info",
+            reload=False  
+        )
+        server = uvicorn.Server(config)
+        server.run()
         
-    if settings.api_key:
-        logger.info("API Key configurada")
-    
-    logger.info(f"Nível de log: {settings.log_level}")
-    logger.info(f"Tempo de cache: {settings.cache_timeout} segundos")
+    except Exception as e:
+        logger.error(f"Erro ao iniciar servidor: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    start_server()
