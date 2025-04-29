@@ -8,6 +8,8 @@ import tempfile
 # Adicionar o diretório raiz ao path para importar os módulos da aplicação
 sys.path.append(str(Path(__file__).parent.parent))
 
+from app.models.utxo_models import Input, Output, TransactionRequest
+
 @pytest.fixture
 def mock_response():
     """Fixture para criar um mock de resposta HTTP"""
@@ -92,4 +94,84 @@ def test_balance_data():
     return {
         "chain_stats": {"funded_txo_sum": 1000000, "spent_txo_sum": 500000},
         "mempool_stats": {"funded_txo_sum": 200000, "spent_txo_sum": 0}
-    } 
+    }
+
+@pytest.fixture
+def test_address_testnet():
+    """Fornece um endereço Bitcoin de teste na testnet"""
+    return "mxosQ4CvQR8ipfWdRktyB3u16tauEdamGc"
+
+@pytest.fixture
+def test_address_mainnet():
+    """Fornece um endereço Bitcoin de teste na mainnet"""
+    return "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+
+@pytest.fixture
+def test_private_key_testnet():
+    """Fornece uma chave privada de teste para a rede de testes"""
+    return "cTJVuFKuupCMvCTUhyeDf41aiagMXwW39MYQ6cvSgwXNVokHNuKi"
+
+@pytest.fixture
+def test_public_key():
+    """Fornece uma chave pública de teste"""
+    return "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+
+@pytest.fixture
+def test_transaction_data():
+    """Fornece dados de transação de exemplo"""
+    return {
+        "raw_transaction": "02000000013e283d571fe99cb1ebb0c012ec2c8bf785f5a39435de8636e67a65ec80daea17000000006a47304402204b3b868a9a17698b37f17c35d58a6383ec5226a8e68b39d90648b9cfd46633bf02204cff73c675f01a2ea7bf6bf80440f3f0e1bbb91e3c95064493b0ccc8a97c1352012103a13a20be306339d11e88a324ea96851ce728ba85548e8ff6f2386f9466e2ca8dffffffff0150c30000000000001976a914d0c59903c5bac2868760e90fd521a4665aa7652088ac00000000",
+        "txid": "a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890",
+        "fee": 10000
+    }
+
+@pytest.fixture
+def test_utxos():
+    """Fornece UTXOs de exemplo"""
+    return [
+        {
+            "txid": "7a1ae0dc85ea676e63485de4394a5d78fbfc8c02e012c0ebb19ce91f573d283e",
+            "vout": 0,
+            "value": 5000000,
+            "confirmations": 6,
+            "script": "76a914d0c59903c5bac2868760e90fd521a4665aa7652088ac"
+        },
+        {
+            "txid": "8b1ae0dc85ea676e63485de4394a5d78fbfc8c02e012c0ebb19ce91f573d283f",
+            "vout": 1,
+            "value": 1000000,
+            "confirmations": 2,
+            "script": "76a914d0c59903c5bac2868760e90fd521a4665aa7652088ac"
+        }
+    ]
+
+@pytest.fixture
+def test_balance_data():
+    """Fornece dados de saldo de exemplo"""
+    return {
+        "confirmed": 5000000,
+        "unconfirmed": 1000000,
+        "total": 6000000
+    }
+
+@pytest.fixture
+def sample_tx_request():
+    """Fornece uma requisição de transação de exemplo"""
+    return TransactionRequest(
+        inputs=[
+            Input(
+                txid="7a1ae0dc85ea676e63485de4394a5d78fbfc8c02e012c0ebb19ce91f573d283e",
+                vout=0,
+                value=5000000,
+                script="76a914d0c59903c5bac2868760e90fd521a4665aa7652088ac",
+                address="mxosQ4CvQR8ipfWdRktyB3u16tauEdamGc"
+            )
+        ],
+        outputs=[
+            Output(
+                address="tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+                value=4990000
+            )
+        ],
+        fee_rate=2.0
+    ) 

@@ -70,7 +70,7 @@ def broadcast_transaction(request: BroadcastRequest):
     """
     try:
         url = f"{get_blockchain_api_url()}/tx"
-        response = requests.post(url, json={"tx": request.tx_hex})
+        response = requests.post(url, json={"tx": request.tx_hex}, timeout=10)
         
         if response.status_code != 200:
             logger.error(f"Erro ao transmitir transação: {response.text}")

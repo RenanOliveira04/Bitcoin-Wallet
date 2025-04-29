@@ -1,13 +1,10 @@
 import requests
 from app.dependencies import get_blockchain_api_url, get_cache_dir, get_cache_timeout, is_offline_mode_enabled
-from fastapi import HTTPException
 import logging
-from functools import lru_cache
-from typing import Dict, List, Any, Optional
+from typing import Any
 import time
 import json
 import os
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -125,13 +122,11 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
     """
     cache_key = f"balance_{network}_{address}"
     
-    # Verificar cache primeiro
     cached_data = blockchain_cache.get(cache_key)
     if cached_data:
         logger.info(f"[BLOCKCHAIN] Retornando saldo do cache para {address}")
         return cached_data
     
-    # Se modo offline, verificar cache ignorando TTL
     if offline_mode:
         expired_data = blockchain_cache.get(cache_key, ignore_ttl=True)
         if expired_data:
@@ -141,13 +136,12 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
             logger.warning(f"[OFFLINE] Sem dados de cache para {address}")
             return {"confirmed": 0, "unconfirmed": 0}
     
-    # Modo online - consultar API
     try:
         logger.info(f"[BLOCKCHAIN] Consultando saldo para o endereço {address} na rede {network}")
         
         if network == "testnet":
             url = f"https://blockstream.info/testnet/api/address/{address}"
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
             
@@ -157,7 +151,7 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
             }
         else:
             url = f"{get_blockchain_api_url(network)}/address/{address}/balance"
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             response.raise_for_status()
             result = response.json()
 
@@ -167,7 +161,6 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
     except requests.exceptions.RequestException as e:
         logger.error(f"[BLOCKCHAIN] Erro ao consultar saldo: {str(e)}")
         
-        # Retornar dados do cache se disponível, mesmo que expirados
         expired_data = blockchain_cache.get(cache_key, ignore_ttl=True)
         if expired_data:
             logger.warning(f"[BLOCKCHAIN] Retornando dados do cache expirado: {expired_data}")
@@ -229,13 +222,11 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
     """
     cache_key = f"utxos_{network}_{address}"
     
-    # Verificar cache primeiro
     cached_data = blockchain_cache.get(cache_key)
     if cached_data:
         logger.info(f"[BLOCKCHAIN] Retornando UTXOs do cache para {address}")
         return cached_data
     
-    # Se modo offline, verificar cache ignorando TTL
     if offline_mode:
         expired_data = blockchain_cache.get(cache_key, ignore_ttl=True)
         if expired_data:
@@ -245,18 +236,15 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
             logger.warning(f"[OFFLINE] Sem dados de UTXOs em cache para {address}")
             return []
     
-    # Modo online - consultar API
     try:
         logger.info(f"[BLOCKCHAIN] Consultando UTXOs para o endereço {address} na rede {network}")
         
         if network == "testnet":
-            # Para testnet, usamos uma API específica (blockstream.info)
             url = f"https://blockstream.info/testnet/api/address/{address}/utxo"
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             response.raise_for_status()
             utxos = response.json()
             
-            # Transformar para o formato padrão
             result = []
             for utxo in utxos:
                 result.append({
@@ -268,12 +256,11 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
                     "address": address
                 })
                 
-            # Salvar no cache
             blockchain_cache.set(cache_key, result)
             return result
         else:
             url = f"{get_blockchain_api_url(network)}/address/{address}/utxo"
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             response.raise_for_status()
             result = response.json()
             blockchain_cache.set(cache_key, result)
@@ -282,7 +269,6 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
     except requests.exceptions.RequestException as e:
         logger.error(f"[BLOCKCHAIN] Erro ao consultar UTXOs: {str(e)}")
         
-        # Retornar dados do cache se disponível, mesmo que expirados
         expired_data = blockchain_cache.get(cache_key, ignore_ttl=True)
         if expired_data:
             logger.warning(f"[BLOCKCHAIN] Retornando UTXOs do cache expirado: {len(expired_data)} UTXOs")
@@ -302,15 +288,87 @@ def is_offline_mode() -> bool:
     Returns:
         bool: True se estiver no modo offline, False caso contrário
     """
-    # Verificar configuração
     if is_offline_mode_enabled():
         return True
         
-    # Verificar conectividade
     try:
-        # Tentativa de conexão com timeout reduzido
         requests.get("https://blockstream.info/api/blocks/tip/height", timeout=2)
         return False
     except:
         logger.warning("[BLOCKCHAIN] Modo offline detectado por falha na conexão")
         return True
+
+def _get_test_balance_blockstream_fallback(address, force_offline=False):
+    """Fallback para Blockstream.info para consultar saldo em testnet"""
+    try:
+        if not force_offline:
+            url = f"https://blockstream.info/testnet/api/address/{address}"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return {"confirmed": 0}  
+        raise Exception("Modo offline forçado")
+    except Exception as e:
+        logger.warning(f"Erro ao consultar Blockstream para saldo de {address}: {str(e)}")
+        raise
+
+def _get_balance_from_api(address, network, force_offline=False):
+    """Obtém saldo do endereço através da API configurada"""
+    try:
+        if not force_offline:
+            url = f"{get_blockchain_api_url(network)}/address/{address}/balance"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            return data
+        raise Exception("Modo offline forçado")
+    except Exception as e:
+        logger.warning(f"Erro ao consultar API para saldo de {address}: {str(e)}")
+        
+        if network == "testnet":
+            return _get_test_balance_blockstream_fallback(address, force_offline)
+        
+        raise Exception(f"Erro ao obter saldo para {address}: {str(e)}")
+
+def _get_test_utxos_blockstream_fallback(address, force_offline=False):
+    """Fallback para Blockstream.info para consultar UTXOs em testnet"""
+    try:
+        if not force_offline:
+            url = f"https://blockstream.info/testnet/api/address/{address}/utxo"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            utxos = []
+            for utxo in data:
+                utxos.append({
+                    "txid": utxo.get("txid"),
+                    "vout": utxo.get("vout"),
+                    "value": utxo.get("value"),
+                    "confirmations": 0 if utxo.get("status", {}).get("confirmed", False) else 0,
+                    "script": "", 
+                    "address": address
+                })
+            return utxos
+        raise Exception("Modo offline forçado")
+    except Exception as e:
+        logger.warning(f"Erro ao consultar Blockstream para UTXOs de {address}: {str(e)}")
+        return []
+
+def _get_utxos_from_api(address, network, force_offline=False):
+    """Obtém UTXOs do endereço através da API configurada"""
+    try:
+        if not force_offline:
+            url = f"{get_blockchain_api_url(network)}/address/{address}/utxo"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            return data
+        raise Exception("Modo offline forçado")
+    except Exception as e:
+        logger.warning(f"Erro ao consultar API para UTXOs de {address}: {str(e)}")
+        
+        if network == "testnet":
+            return _get_test_utxos_blockstream_fallback(address, force_offline)
+        
+        return []

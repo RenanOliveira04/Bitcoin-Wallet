@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
-from app.dependencies import get_network
+from typing import Optional
 from enum import Enum
 
 class KeyMethod(str, Enum):

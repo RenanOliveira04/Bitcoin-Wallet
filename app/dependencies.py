@@ -1,13 +1,10 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 import bech32
-from bitcoinlib.networks import NETWORK_DEFINITIONS
 import logging
 from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import time
-import os
 from pathlib import Path
 
 class Settings(BaseSettings):
@@ -19,6 +16,7 @@ class Settings(BaseSettings):
     
     blockchain_api_url: Optional[str] = None
     mempool_api_url: Optional[str] = None
+    mainnet_api_url: Optional[str] = None
     
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
@@ -26,6 +24,9 @@ class Settings(BaseSettings):
     offline_mode: bool = False
     cache_dir: Optional[str] = None
     cache_timeout_cold: int = 2592000  # 30 dias
+    
+    port: Optional[str] = "8000"
+    environment: Optional[str] = "development"
 
     class Config:
         env_file = ".env"

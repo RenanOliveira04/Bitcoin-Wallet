@@ -1,7 +1,7 @@
-import pytest
 import sys
 import os
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 # Adicionar o diretório raiz ao path para importar os módulos da aplicação
 sys.path.append(str(Path(__file__).parent.parent))

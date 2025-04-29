@@ -1,12 +1,12 @@
-import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import keys, addresses, balance, utxo, broadcast, fee, sign, validate, tx, health
-from app.dependencies import get_network, setup_logging, get_settings
+from app.dependencies import get_settings
 import logging
 from fastapi.openapi.utils import get_openapi
 import os
 import sys
+import uvicorn
 
 # Configuração de logging
 logging.basicConfig(

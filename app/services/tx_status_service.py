@@ -1,8 +1,7 @@
 import requests
 import logging
-from typing import Dict, Any, Optional
 from app.models.transaction_status_models import TransactionStatusModel
-from app.dependencies import get_bitcoinlib_network, get_blockchain_api_url
+from app.dependencies import get_blockchain_api_url
 import re
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ def get_transaction_status(txid: str, network: str = "testnet") -> TransactionSt
         
         # Implementação real
         api_url = get_blockchain_api_url(network)
-        response = requests.get(f"{api_url}/transaction/{txid}")
+        response = requests.get(f"{api_url}/transaction/{txid}", timeout=10)
         
         if response.status_code != 200:
             logger.error(f"[TX_STATUS] Erro ao consultar transação: {response.text}")

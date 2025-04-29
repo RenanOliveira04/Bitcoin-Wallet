@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, Any, Optional
 
 from app.models.utxo_models import TransactionRequest, TransactionResponse, Input, Output
 from app.services.transaction import BitcoinLibBuilder, BitcoinCoreBuilder

@@ -1,9 +1,7 @@
-import pytest
 import sys
 from pathlib import Path
 from fastapi.testclient import TestClient
-import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Adicionar o diretório raiz ao path para importar os módulos da aplicação
 sys.path.append(str(Path(__file__).parent.parent))

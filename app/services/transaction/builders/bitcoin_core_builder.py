@@ -1,9 +1,7 @@
-from abc import ABC
 from bitcoin.core import CMutableTxIn, CMutableTxOut, CMutableTransaction, b2x
 from bitcoin.core.script import CScript
-import bitcoin.rpc
 import logging
-from typing import Optional
+from typing import Optional, Any
 
 from app.models.utxo_models import TransactionRequest, TransactionResponse
 from app.services.transaction.builders.bitcoin_lib_builder import TransactionBuilder
@@ -17,7 +15,7 @@ class BitcoinCoreBuilder(TransactionBuilder):
     implementa protocolos do Bitcoin Core.
     """
     
-    def __init__(self, rpc_connection: Optional[bitcoin.rpc.Proxy] = None):
+    def __init__(self, rpc_connection: Optional[Any] = None):
         """
         Inicializa o construtor com uma conexão RPC opcional.
         
@@ -42,6 +40,8 @@ class BitcoinCoreBuilder(TransactionBuilder):
         """
         logger.info(f"Iniciando construção de transação Bitcoin Core para rede {network}")
         try:
+            import bitcoin
+            
             if network == "testnet":
                 bitcoin.SelectParams("testnet")
             else:
@@ -73,12 +73,9 @@ class BitcoinCoreBuilder(TransactionBuilder):
                 
                 tx_out = CMutableTxOut(amount)
                 
-                
                 if self.rpc:
                     tx_out.scriptPubKey = self.rpc.validateaddress(output.address)["scriptPubKey"]
                 else:
-                    # Implementação fallback simples para P2PKH (apenas como exemplo)
-                    # Isso não é recomendado para uso em produção
                     from bitcoin.wallet import CBitcoinAddress
                     addr = CBitcoinAddress(output.address)
                     tx_out.scriptPubKey = addr.to_scriptPubKey()
@@ -91,7 +88,7 @@ class BitcoinCoreBuilder(TransactionBuilder):
             
             raw_tx_hex = b2x(tx.serialize())
             
-            txid = b2x(tx.GetTxid()[::-1])  
+            txid = b2x(tx.GetTxid()[::-1])  # Reverte bytes devido ao endianness
             
             response = TransactionResponse(
                 raw_transaction=raw_tx_hex,

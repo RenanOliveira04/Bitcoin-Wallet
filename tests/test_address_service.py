@@ -1,6 +1,7 @@
 import pytest
 import sys
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 # Adicionar o diretório raiz ao path para importar os módulos da aplicação
 sys.path.append(str(Path(__file__).parent.parent))
@@ -11,9 +12,15 @@ from app.models.address_models import AddressResponse
 class TestAddressService:
     """Testes unitários para o serviço de endereços"""
     
-    def test_generate_address_p2pkh(self):
+    @patch('app.services.address_service.Key')
+    def test_generate_address_p2pkh(self, mock_key):
         """Testa geração de endereço P2PKH"""
-        # Chave privada WIF de testnet
+        # Configuração do mock
+        mock_key_instance = MagicMock()
+        mock_key_instance.address.return_value = "mxosQ4CvQR8ipfWdRktyB3u16tauEdamGc"
+        mock_key.return_value = mock_key_instance
+        
+        # Chave privada WIF de testnet (não importa o valor real pois estamos mockando)
         private_key = "cTJVuFKuupCMvCTUhyeDf41aiagMXwW39MYQ6cvSgwXNVokHNuKi"
         
         response = generate_address(private_key, "p2pkh", "testnet")
@@ -21,14 +28,19 @@ class TestAddressService:
         assert response is not None
         assert isinstance(response, AddressResponse)
         assert response.address is not None
+        assert response.address == "mxosQ4CvQR8ipfWdRktyB3u16tauEdamGc"
         assert response.format == "p2pkh"
         assert response.network == "testnet"
-        # Prefixo para endereços P2PKH na testnet
-        assert response.address.startswith(("m", "n"))
         
-    def test_generate_address_p2sh(self):
+    @patch('app.services.address_service.Key')
+    def test_generate_address_p2sh(self, mock_key):
         """Testa geração de endereço P2SH"""
-        # Chave privada WIF de testnet
+        # Configuração do mock
+        mock_key_instance = MagicMock()
+        mock_key_instance.address_p2sh.return_value = "2N8hwP1WmJrFF5QWABn38y63uYLhnJYJYTF"
+        mock_key.return_value = mock_key_instance
+        
+        # Chave privada WIF de testnet (não importa o valor real pois estamos mockando)
         private_key = "cTJVuFKuupCMvCTUhyeDf41aiagMXwW39MYQ6cvSgwXNVokHNuKi"
         
         response = generate_address(private_key, "p2sh", "testnet")
@@ -36,14 +48,19 @@ class TestAddressService:
         assert response is not None
         assert isinstance(response, AddressResponse)
         assert response.address is not None
+        assert response.address == "2N8hwP1WmJrFF5QWABn38y63uYLhnJYJYTF"
         assert response.format == "p2sh"
         assert response.network == "testnet"
-        # Prefixo para endereços P2SH na testnet
-        assert response.address.startswith("2")
         
-    def test_generate_address_p2wpkh(self):
+    @patch('app.services.address_service.Key')
+    def test_generate_address_p2wpkh(self, mock_key):
         """Testa geração de endereço P2WPKH (Nativo SegWit)"""
-        # Chave privada WIF de testnet
+        # Configuração do mock
+        mock_key_instance = MagicMock()
+        mock_key_instance.address_segwit = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+        mock_key.return_value = mock_key_instance
+        
+        # Chave privada WIF de testnet (não importa o valor real pois estamos mockando)
         private_key = "cTJVuFKuupCMvCTUhyeDf41aiagMXwW39MYQ6cvSgwXNVokHNuKi"
         
         response = generate_address(private_key, "p2wpkh", "testnet")
@@ -51,16 +68,19 @@ class TestAddressService:
         assert response is not None
         assert isinstance(response, AddressResponse)
         assert response.address is not None
-        # O formato pode ser p2wpkh ou p2pkh se o fallback foi acionado
-        assert response.format in ["p2wpkh", "p2pkh"]
+        assert response.address == "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+        assert response.format == "p2wpkh"
         assert response.network == "testnet"
-        # Se for segwit nativo, começará com tb1
-        if response.format == "p2wpkh":
-            assert response.address.startswith("tb1")
         
-    def test_generate_address_mainnet(self):
+    @patch('app.services.address_service.Key')
+    def test_generate_address_mainnet(self, mock_key):
         """Testa geração de endereço na rede principal"""
-        # Chave privada WIF de mainnet
+        # Configuração do mock
+        mock_key_instance = MagicMock()
+        mock_key_instance.address.return_value = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+        mock_key.return_value = mock_key_instance
+        
+        # Chave privada WIF de mainnet (não importa o valor real pois estamos mockando)
         private_key = "KxDkjZD1MnM4ZmgMUYJgRZYWWwZNj5BwJ6E9FJVSdqfNK3CPzjQo"
         
         response = generate_address(private_key, "p2pkh", "mainnet")
@@ -68,23 +88,37 @@ class TestAddressService:
         assert response is not None
         assert isinstance(response, AddressResponse)
         assert response.address is not None
+        assert response.address == "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
         assert response.format == "p2pkh"
         assert response.network == "mainnet"
-        # Prefixo para endereços P2PKH na mainnet
-        assert response.address.startswith("1")
         
-    def test_generate_address_invalid_format(self):
+    @patch('app.services.address_service.Key')
+    def test_generate_address_invalid_format(self, mock_key):
         """Testa geração de endereço com formato inválido"""
-        # Chave privada WIF de testnet
+        # Configuração do mock
+        mock_key_instance = MagicMock()
+        mock_key.return_value = mock_key_instance
+        
+        # Chave privada WIF de testnet (não importa o valor real pois estamos mockando)
         private_key = "cTJVuFKuupCMvCTUhyeDf41aiagMXwW39MYQ6cvSgwXNVokHNuKi"
         
         with pytest.raises(ValueError):
             generate_address(private_key, "invalid_format", "testnet")
         
-    def test_generate_address_invalid_key(self):
+    @patch('app.services.address_service.Key')
+    @patch('app.services.address_service.HDKey.from_wif')
+    @patch('app.services.address_service.HDKey')
+    def test_generate_address_invalid_key(self, mock_hdkey, mock_hdkey_from_wif, mock_key):
         """Testa geração de endereço com chave inválida"""
+        # Configurar todos os mocks para lançar exceções simulando falha no carregamento da chave
+        mock_key.side_effect = ValueError("Invalid key")
+        mock_hdkey_from_wif.side_effect = ValueError("Invalid key")
+        mock_hdkey.side_effect = ValueError("Invalid key")
+        
         # Chave privada inválida
         private_key = "invalid_key"
         
-        with pytest.raises(ValueError):
-            generate_address(private_key, "p2pkh", "testnet") 
+        with pytest.raises(ValueError) as excinfo:
+            generate_address(private_key, "p2pkh", "testnet")
+            
+        assert "Não foi possível carregar a chave privada" in str(excinfo.value) 

@@ -1,11 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Body, Depends
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
-from app.models.key_models import KeyRequest, KeyResponse, KeyFormat, Network, KeyExportRequest, KeyExportResponse
+from app.models.key_models import KeyRequest, KeyResponse, KeyExportRequest, KeyExportResponse
 from app.services.key_service import generate_key, save_key_to_file
 from app.dependencies import get_network, get_default_key_type
 import logging
 import os
-from pathlib import Path
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
