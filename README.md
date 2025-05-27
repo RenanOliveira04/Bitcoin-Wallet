@@ -144,11 +144,39 @@ CACHE_TIMEOUT=2592000
 python build.py
 ```
 
-### Docker (para desenvolvimento)
-```bash
-docker build -t bitcoin-wallet-core .
-docker run -p 8000:8000 bitcoin-wallet-core
-```
+## Quick Start with Docker
+
+This project can be easily run using Docker. We provide scripts to automate the build and run process.
+
+**Prerequisites:**
+*   Docker: [https://docs.docker.com/engine/install/]
+*   Docker Compose: Usually included with Docker Desktop (Windows, macOS) or installed as a plugin for Docker Engine on Linux. [https://docs.docker.com/compose/install/]
+
+**Instructions:**
+
+### For Linux/macOS Users:
+1.  Open your terminal.
+2.  Navigate to the root directory of this project.
+3.  Make the script executable (if you haven't already):
+    ```bash
+    chmod +x run_docker.sh
+    ```
+4.  Run the script:
+    ```bash
+    ./run_docker.sh
+    ```
+    This script will build the Docker image and start the API service. The API should then be accessible at `http://localhost:8000` (or the port configured in `docker-compose.yml`).
+
+### For Windows Users:
+1.  Open Command Prompt or PowerShell.
+2.  Navigate to the root directory of this project.
+3.  Run the script:
+    ```batch
+    run_docker.bat
+    ```
+    This script will build the Docker image and start the API service. The API should then be accessible at `http://localhost:8000` (or the port configured in `docker-compose.yml`).
+
+---
 
 ## Monitoramento
 
