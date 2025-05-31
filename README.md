@@ -58,6 +58,10 @@ O projeto possui três ambientes distintos:
 - Consulta de status de transações
 - **Modo offline para uso como cold wallet**
 - **Cache persistente de dados da blockchain**
+- **Armazenamento local de carteiras com SQLite**
+  - Persistência de dados de carteiras
+  - Histórico de transações
+  - Rastreamento de UTXOs
 
 ## Builders de Transação
 
@@ -108,23 +112,18 @@ cd bitcoin-wallet
 
 2. Configure o ambiente:
 ```bash
-# Crie e configure as branches
 chmod +x scripts/setup_branches.sh
 ./scripts/setup_branches.sh
 
-# Instale as dependências
 pip install -r requirements.txt
 ```
 
 3. Selecione o ambiente:
 ```bash
-# Para desenvolvimento
 cp config/development.env .env
 
-# Para staging
 cp config/staging.env .env
 
-# Para produção
 cp config/production.env .env
 ```
 
@@ -171,7 +170,65 @@ async function buildTransaction(inputs, outputs, feeRate) {
   });
   return response.json();
 }
+
+// Exemplo de uso do armazenamento local de carteiras
+async function saveWallet(wallet) {
+  const response = await fetch(`${API_BASE}/wallets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(wallet)
+  });
+  return response.json();
+}
+
+async function getLocalWallets() {
+  const response = await fetch(`${API_BASE}/wallets`);
+  return response.json();
+}
+
+async function getWalletDetails(address) {
+  const response = await fetch(`${API_BASE}/wallets/${address}`);
+  return response.json();
+}
+
+async function getWalletTransactions(address) {
+  const response = await fetch(`${API_BASE}/wallets/${address}/transactions`);
+  return response.json();
+}
+
+async function getWalletUTXOs(address) {
+  const response = await fetch(`${API_BASE}/wallets/${address}/utxos`);
+  return response.json();
+}
 ```
+
+## Armazenamento Local com SQLite
+
+O Bitcoin Wallet Core agora inclui uma camada de armazenamento local baseada em SQLite que permite:
+
+- Salvar e gerenciar carteiras localmente
+- Armazenar histórico de transações
+- Rastrear UTXOs disponíveis
+- Manter os dados mesmo sem conexão com a internet
+
+O banco de dados SQLite é armazenado em `~/.bitcoin-wallet/data/wallet.db` e gerenciado automaticamente pelo aplicativo.
+
+### Modelos de Dados
+
+- **Wallet**: Armazena informações das carteiras (endereço, chave pública, formato, etc.)
+- **Transaction**: Histórico de transações associadas a cada carteira
+- **UTXO**: Rastreamento de UTXOs disponíveis para uso em transações
+
+### Endpoints da API
+
+- `GET /api/wallets`: Lista todas as carteiras salvas localmente
+- `POST /api/wallets`: Salva uma nova carteira
+- `GET /api/wallets/{address}`: Obtém detalhes de uma carteira específica
+- `DELETE /api/wallets/{address}`: Remove uma carteira
+- `GET /api/wallets/{address}/transactions`: Lista as transações de uma carteira
+- `GET /api/wallets/{address}/utxos`: Lista os UTXOs de uma carteira
 
 ## Modo Cold Wallet
 
@@ -182,6 +239,8 @@ OFFLINE_MODE=true
 CACHE_DIR=/caminho/personalizado/cache
 CACHE_TIMEOUT=2592000
 ```
+
+O armazenamento local SQLite complementa o modo cold wallet, permitindo persistência de dados mesmo sem conectividade.
 
 ## Build e Distribuição
 
@@ -202,6 +261,45 @@ A aplicação inclui endpoints de health check e métricas:
 
 - `GET /api/health`: Status do serviço
 - `GET /api/metrics`: Métricas do sistema
+
+### Monitoramento com Zabbix
+
+O projeto inclui uma integração completa com Zabbix para monitoramento de desempenho, com as seguintes características:
+
+#### Métricas Monitoradas
+
+- **Health Check**: Verifica se a aplicação está online e saudável
+- **Transações**: Contador de transações processadas
+- **Saldo da Carteira**: Monitoramento do saldo atual
+- **Tempo de Resposta**: Performance da API
+- **Uso de CPU**: Consumo de CPU da aplicação
+- **Uso de Memória**: Consumo de memória da aplicação
+- **Requisições API**: Contador de chamadas à API
+- **Taxa de Erro**: Percentual de erros nas requisições
+
+#### Configuração do Zabbix
+
+A configuração do Zabbix está disponível no diretório `/zabbix` e inclui:
+
+- **Configurações do Agente**: Em `/zabbix/zabbix_agentd.d/`
+- **Script de Coleta**: `/zabbix/collect_metrics.py`
+- **Template Zabbix**: `/zabbix/bitcoin_wallet_template.xml`
+
+#### Importando o Template
+
+1. Acesse a interface web do Zabbix (disponível em http://localhost:80)
+2. Vá para **Configuration > Templates**
+3. Clique em **Import**
+4. Selecione o arquivo `bitcoin_wallet_template.xml`
+5. Clique em **Import**
+
+#### Alertas Configurados
+
+- **Aplicação Inativa**: Quando o health check falha
+- **Tempo de Resposta Alto**: Quando o tempo de resposta excede 3 segundos
+- **Alto Uso de CPU**: Quando o uso de CPU excede 80%
+- **Alto Uso de Memória**: Quando o uso de memória excede 80%
+- **Alta Taxa de Erro**: Quando a taxa de erro excede 5%
 
 ## Testes Unitários
 

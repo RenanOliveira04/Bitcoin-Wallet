@@ -6,6 +6,7 @@ import logging
 from bitcoinlib.keys import Address
 from typing import Optional
 import re
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -162,13 +163,38 @@ def get_balance_utxos(
                     detail=f"Endereço Bitcoin inválido para a rede {network}"
                 )
         
-        balance_data = get_balance(address, network, offline_mode)
-        utxos_data = get_utxos(address, network, offline_mode)
+        # Primeiro tentamos obter o saldo
+        try:
+            balance_data = get_balance(address, network, offline_mode)
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"[BALANCE] Timeout ao consultar saldo para {address}: {str(e)}")
+            # For timeout errors, force offline mode to use cached data
+            balance_data = get_balance(address, network, True)
+            
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"[BALANCE] Erro de conexão ao consultar saldo para {address}: {str(e)}")
+            # For other request errors, force offline mode to use cached data
+            balance_data = get_balance(address, network, True)
         
+        # Depois tentamos obter os UTXOs
+        try:
+            utxos_data = get_utxos(address, network, offline_mode)
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"[BALANCE] Timeout ao consultar UTXOs para {address}: {str(e)}")
+            # For timeout errors, force offline mode to use cached data
+            utxos_data = get_utxos(address, network, True)
+            
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"[BALANCE] Erro de conexão ao consultar UTXOs para {address}: {str(e)}")
+            # For other request errors, force offline mode to use cached data
+            utxos_data = get_utxos(address, network, True)
+            
         if not offline_mode and balance_data["confirmed"] == 0 and balance_data["unconfirmed"] == 0 and not utxos_data:
-            raise HTTPException(
-                status_code=404,
-                detail="Endereço não encontrado ou sem transações"
+            # No transactions found, but the address is valid
+            logger.info(f"[BALANCE] Endereço válido mas sem fundos: {address}")
+            return BalanceModel(
+                balance=0,
+                utxos=[]
             )
         
         return BalanceModel(

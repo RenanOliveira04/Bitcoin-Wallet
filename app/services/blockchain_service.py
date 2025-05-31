@@ -139,16 +139,54 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
     try:
         logger.info(f"[BLOCKCHAIN] Consultando saldo para o endereço {address} na rede {network}")
         
+        # For empty or temporarily inaccessible addresses, return 0 balance
+        # This avoids errors in the UI when the blockchain API is not accessible
+        default_result = {"confirmed": 0, "unconfirmed": 0}
+        
         if network == "testnet":
-            url = f"https://blockstream.info/testnet/api/address/{address}"
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            # Try multiple APIs in sequence until one succeeds
+            apis_to_try = [
+                {
+                    "name": "blockstream.info",
+                    "url": f"https://blockstream.info/testnet/api/address/{address}",
+                    "parser": lambda data: {
+                        "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
+                        "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
+                    }
+                },
+                {
+                    "name": "blockchair.com",
+                    "url": f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}",
+                    "parser": lambda data: {
+                        "confirmed": data.get("data", {}).get(address, {}).get("address", {}).get("balance", 0),
+                        "unconfirmed": data.get("data", {}).get(address, {}).get("address", {}).get("received_unspent", 0) - 
+                                      data.get("data", {}).get(address, {}).get("address", {}).get("balance", 0)
+                    }
+                },
+                {
+                    "name": "mempool.space",
+                    "url": f"https://mempool.space/testnet/api/address/{address}",
+                    "parser": lambda data: {
+                        "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
+                        "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
+                    }
+                }
+            ]
             
-            result = {
-                "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
-                "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
-            }
+            for api in apis_to_try:
+                try:
+                    logger.info(f"[BLOCKCHAIN] Tentando {api['name']} para saldo: {api['url']}")
+                    response = requests.get(api['url'], timeout=15)  # Reduced timeout for faster fallback
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    result = api['parser'](data)
+                    logger.info(f"[BLOCKCHAIN] Sucesso com {api['name']} para saldo de {address}")
+                    break  # Exit the loop if successful
+                except Exception as e:
+                    logger.warning(f"[BLOCKCHAIN] Falha ao acessar {api['name']}: {str(e)}")
+                    result = default_result  # Will be overwritten if another API succeeds
+                    continue  # Try the next API
         else:
             url = f"{get_blockchain_api_url(network)}/address/{address}/balance"
             response = requests.get(url, timeout=10)
@@ -166,9 +204,7 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
             logger.warning(f"[BLOCKCHAIN] Retornando dados do cache expirado: {expired_data}")
             return expired_data
             
-        dummy_data = {"confirmed": 0, "unconfirmed": 0}
-        logger.warning(f"[BLOCKCHAIN] Retornando dados simulados: {dummy_data}")
-        return dummy_data
+        raise
 
 def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
     """
@@ -239,22 +275,64 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
     try:
         logger.info(f"[BLOCKCHAIN] Consultando UTXOs para o endereço {address} na rede {network}")
         
+        # Default empty result for valid addresses that cannot be reached
+        default_result = []
+        
         if network == "testnet":
-            url = f"https://blockstream.info/testnet/api/address/{address}/utxo"
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            utxos = response.json()
+            # Try multiple APIs in sequence until one succeeds
+            apis_to_try = [
+                {
+                    "name": "blockstream.info",
+                    "url": f"https://blockstream.info/testnet/api/address/{address}/utxo",
+                    "parser": lambda data: [{
+                        "txid": utxo.get("txid"),
+                        "vout": utxo.get("vout"),
+                        "value": utxo.get("value"),
+                        "script": utxo.get("scriptpubkey", ""),
+                        "confirmations": utxo.get("status", {}).get("confirmations", 0),
+                        "address": address
+                    } for utxo in data]
+                },
+                {
+                    "name": "blockchair.com",
+                    "url": f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}?utxo=true",
+                    "parser": lambda data: [{
+                        "txid": utxo.get("transaction_hash"),
+                        "vout": utxo.get("index"),
+                        "value": utxo.get("value"),
+                        "script": utxo.get("script_hex", ""),
+                        "confirmations": data.get("context", {}).get("state", 0) - utxo.get("block_id", 0) if utxo.get("block_id", 0) > 0 else 0,
+                        "address": address
+                    } for utxo in data.get("data", {}).get(address, {}).get("utxo", [])]
+                },
+                {
+                    "name": "mempool.space",
+                    "url": f"https://mempool.space/testnet/api/address/{address}/utxo",
+                    "parser": lambda data: [{
+                        "txid": utxo.get("txid"),
+                        "vout": utxo.get("vout"),
+                        "value": utxo.get("value"),
+                        "script": utxo.get("scriptpubkey", ""),
+                        "confirmations": 1 if utxo.get("status", {}).get("confirmed", False) else 0,
+                        "address": address
+                    } for utxo in data]
+                }
+            ]
             
-            result = []
-            for utxo in utxos:
-                result.append({
-                    "txid": utxo.get("txid"),
-                    "vout": utxo.get("vout"),
-                    "value": utxo.get("value"),
-                    "script": utxo.get("scriptpubkey", ""),
-                    "confirmations": utxo.get("status", {}).get("confirmations", 0),
-                    "address": address
-                })
+            for api in apis_to_try:
+                try:
+                    logger.info(f"[BLOCKCHAIN] Tentando {api['name']} para UTXOs: {api['url']}")
+                    response = requests.get(api['url'], timeout=15)  # Reduced timeout for faster fallback
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    result = api['parser'](data)
+                    logger.info(f"[BLOCKCHAIN] Sucesso com {api['name']} para UTXOs de {address}: {len(result)} encontrados")
+                    break  # Exit the loop if successful
+                except Exception as e:
+                    logger.warning(f"[BLOCKCHAIN] Falha ao acessar {api['name']} para UTXOs: {str(e)}")
+                    result = default_result  # Will be overwritten if another API succeeds
+                    continue  # Try the next API
                 
             blockchain_cache.set(cache_key, result)
             return result
@@ -274,9 +352,8 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
             logger.warning(f"[BLOCKCHAIN] Retornando UTXOs do cache expirado: {len(expired_data)} UTXOs")
             return expired_data
             
-        dummy_data = []
-        logger.warning(f"[BLOCKCHAIN] Retornando dados simulados: {dummy_data}")
-        return dummy_data
+        # Propagate the error instead of returning dummy data
+        raise
 
 def is_offline_mode() -> bool:
     """

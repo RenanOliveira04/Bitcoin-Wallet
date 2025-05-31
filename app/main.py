@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import keys, addresses, balance, utxo, broadcast, fee, sign, validate, tx, health
+from app.routers import keys, addresses, balance, utxo, broadcast, fee, sign, validate, tx, health, wallets
 from app.dependencies import get_settings
 import logging
 from fastapi.openapi.utils import get_openapi
@@ -108,6 +108,10 @@ tags_metadata = [
         "name": "Taxas",
         "description": "Operações relacionadas a taxas de transação.",
     },
+    {
+        "name": "Carteiras",
+        "description": "Operações relacionadas a carteiras Bitcoin.",
+    },
 ]
 
 app = FastAPI(
@@ -161,6 +165,7 @@ app.include_router(sign.router, prefix="/api/sign", tags=["Transações"])
 app.include_router(validate.router, prefix="/api/validate", tags=["Transações"])
 app.include_router(tx.router, prefix="/api/tx", tags=["Status"])
 app.include_router(health.router, prefix="/api", tags=["health"])
+app.include_router(wallets.router, prefix="/api/wallets", tags=["Carteiras"])
 
 def resource_path(relative_path):
     """Obtém o caminho absoluto para recursos empacotados"""
