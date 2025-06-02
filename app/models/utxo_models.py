@@ -125,3 +125,30 @@ class TransactionResponse(BaseModel):
             ]
         }
     }
+
+class UTXOResponse(BaseModel):
+    address: str
+    utxos: List[Input]
+    total_utxos: int
+    total_amount: int
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "address": "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+                    "utxos": [
+                        {
+                            "txid": "7a1ae0dc85ea676e63485de4394a5d78fbfc8c02e012c0ebb19ce91f573d283e",
+                            "vout": 0,
+                            "value": 5000000,
+                            "script": "76a914d0c59903c5bac2868760e90fd521a4665aa7652088ac",
+                            "address": "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
+                        }
+                    ],
+                    "total_utxos": 1,
+                    "total_amount": 5000000
+                }
+            ]
+        }
+    }

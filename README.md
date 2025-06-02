@@ -346,6 +346,170 @@ python -m pytest --cov=app --cov-report=html
 
 Para implementar novos testes, crie um arquivo com o prefixo `test_` na pasta `tests/` seguindo as convenções do pytest. Use as fixtures disponíveis em `conftest.py` para compartilhar recursos comuns entre testes.
 
+## API Documentation
+
+### Base URL
+
+```
+http://localhost:8000/api
+```
+
+### Key Endpoints
+
+#### Generate Bitcoin Keys
+
+```
+POST /api/keys
+```
+
+**Request Body:**
+```json
+{
+  "method": "entropy|bip39|bip32",
+  "network": "testnet|mainnet",
+  "mnemonic": "optional mnemonic phrase",
+  "passphrase": "optional passphrase",
+  "derivation_path": "optional derivation path",
+  "key_format": "p2pkh|p2sh|p2wpkh|p2tr"
+}
+```
+
+**Response:**
+```json
+{
+  "private_key": "cVbZ9eQyCQKionG7J7xu5VLcKQzoubd6uv9pkzmfP24vRkXdLYGN",
+  "public_key": "02a1633cafcc01ebfb6d78e39f687a1f0995c62fc95f51ead10a02ee0be551b5dc",
+  "address": "mrS9zLDazNbgc5YDrLWuEhyPwbsKC8VHA2",
+  "format": "p2pkh",
+  "network": "testnet",
+  "derivation_path": null,
+  "mnemonic": null
+}
+```
+
+**Important Notes:**
+* When using `method: "bip39"`, ensure the mnemonic follows BIP39 standards
+* For P2SH addresses, the implementation provides compatibility with both bitcoinlib 0.7.2 and higher
+
+### Transaction Endpoints
+
+#### Build Transaction
+
+```
+POST /api/tx/build?builder_type=bitcoinlib|bitcoincore
+```
+
+**Request Body:**
+```json
+{
+  "inputs": [
+    {
+      "txid": "7a1ae0dc85ea676e63485de4394a5d78fbfc8c02e012c0ebb19ce91f573d283e",
+      "vout": 0,
+      "value": 5000000,
+      "address": "mxosQ4CvQR8ipfWdRktyB3u16tauEdamGc"
+    }
+  ],
+  "outputs": [
+    {
+      "address": "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
+      "value": 4990000
+    }
+  ],
+  "fee_rate": 2.0
+}
+```
+
+**Response:**
+```json
+{
+  "raw_transaction": "02000000013e283d571fe99cb1ebb0c012e0c8c8fb785d4a39e45d48636e67ea85dce01a7a0000000000ffffffff01e04b4c00000000001600142cd680318747b720d6d18a070cafab656bfb53b000000000",
+  "txid": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z",
+  "fee": 10000
+}
+```
+
+**Important Notes:**
+* The field name is `raw_transaction`, not `transaction_hex`
+* The `builder_type` query parameter defaults to `bitcoinlib` if not specified
+* The BitcoinCoreBuilder uses python-bitcoinlib 0.12.2 specifically 
+
+### Wallet Storage Endpoints
+
+#### Save Wallet
+
+```
+POST /api/wallets
+```
+
+**Request Body:**
+```json
+{
+  "name": "My Test Wallet",
+  "address": "mrS9zLDazNbgc5YDrLWuEhyPwbsKC8VHA2",
+  "public_key": "02a1633cafcc01ebfb6d78e39f687a1f0995c62fc95f51ead10a02ee0be551b5dc",
+  "format": "p2pkh",
+  "network": "testnet",
+  "derivation_path": null, 
+  "mnemonic": null
+}
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "name": "My Test Wallet",
+  "address": "mrS9zLDazNbgc5YDrLWuEhyPwbsKC8VHA2",
+  "public_key": "02a1633cafcc01ebfb6d78e39f687a1f0995c62fc95f51ead10a02ee0be551b5dc",
+  "format": "p2pkh",
+  "network": "testnet",
+  "derivation_path": null,
+  "mnemonic": null,
+  "created_at": "2025-06-01T20:30:00"
+}
+```
+
+#### Get All Wallets
+
+```
+GET /api/wallets
+```
+
+#### Get Balance
+
+```
+GET /api/balance/{address}
+```
+
+**Response:**
+```json
+{
+  "confirmed": 50000,
+  "unconfirmed": 0,
+  "total": 50000
+}
+```
+
+### Error Handling
+
+The API returns standard HTTP status codes:
+
+* `200 OK` - Request successful
+* `400 Bad Request` - Invalid input parameters
+* `404 Not Found` - Resource not found
+* `500 Internal Server Error` - Server-side error
+
+Error responses include a detail message:
+
+```json
+{
+  "detail": "Error message description"
+}
+```
+
+For bitcoinlib-related errors, the detail message will include specific information about the error.
+
 ## Contribuição
 
 1. Faça um fork do projeto

@@ -55,3 +55,39 @@ class BalanceModel(BaseModel):
             ]
         }
     }
+
+class BalanceResponse(BaseModel):
+    address: str = Field(..., description="Endereço Bitcoin consultado")
+    balance: int = Field(..., description="Saldo total disponível em satoshis")
+    utxo_count: int = Field(..., description="Número total de UTXOs disponíveis")
+    utxos: List[UTXOModel] = Field(default=[], description="Lista de UTXOs disponíveis")
+    
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "address": "mrS9zLDazNbgc5YDrLWuEhyPwbsKC8VHA2",
+                    "balance": 150000,
+                    "utxo_count": 2,
+                    "utxos": [
+                        {
+                            "txid": "7a1ae0dc85ea676e63485de4394a5d78fbfc8c02e012c0ebb19ce91f573d283e",
+                            "vout": 0,
+                            "value": 50000,
+                            "script": "76a914d0c59903c5bac2868760e90fd521a4665aa7652088ac",
+                            "confirmations": 6,
+                            "address": "mrS9zLDazNbgc5YDrLWuEhyPwbsKC8VHA2"
+                        },
+                        {
+                            "txid": "8b9ae0dc85ea676e63485de4394a5d78fbfc8c02e012c0ebb19ce91f573d284f",
+                            "vout": 1,
+                            "value": 100000,
+                            "script": "76a914d0c59903c5bac2868760e90fd521a4665aa7652088ac",
+                            "confirmations": 3,
+                            "address": "mrS9zLDazNbgc5YDrLWuEhyPwbsKC8VHA2"
+                        }
+                    ]
+                }
+            ]
+        }
+    }

@@ -37,9 +37,9 @@ def test_address_testnet():
     return "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"
 
 @pytest.fixture
-def test_address_mainnet():
-    """Fixture para fornecer um endereço de teste na mainnet"""
-    return "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2"
+def test_address_alternative():
+    """Fixture para fornecer um endereço alternativo de teste na testnet"""
+    return "tb1ql9tr84wgk7mv3fnyx53xjlltct9u87n77ck2kz"
 
 @pytest.fixture
 def test_private_key_testnet():
@@ -101,9 +101,9 @@ def test_address_testnet():
     return "mxosQ4CvQR8ipfWdRktyB3u16tauEdamGc"
 
 @pytest.fixture
-def test_address_mainnet():
-    """Fornece um endereço Bitcoin de teste na mainnet"""
-    return "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+def test_address_secondary():
+    """Fornece um endereço Bitcoin alternativo de teste na testnet"""
+    return "n4VQ5YdHf7hLQ2gWQYYrcxoE5B7nWuDFNF"
 
 @pytest.fixture
 def test_private_key_testnet():

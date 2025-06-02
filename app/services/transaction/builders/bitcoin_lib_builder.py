@@ -51,14 +51,18 @@ class BitcoinLibBuilder(TransactionBuilder):
             if tx.input_total and tx.output_total:
                 calculated_fee = tx.input_total - tx.output_total
             
+            # Ensure txid is a string (handles mock objects in tests)
+            txid = str(tx.txid) if tx.txid else ""
+
+            # Create the response object
             response = TransactionResponse(
                 raw_transaction=tx.raw_hex(),
-                txid=tx.txid,
+                txid=txid,
                 fee=calculated_fee
             )
             
             logger.debug("Transação construída com sucesso", extra={
-                "txid": tx.txid,
+                "txid": txid,
                 "network": network,
                 "fee": calculated_fee
             })

@@ -42,10 +42,9 @@ class BitcoinCoreBuilder(TransactionBuilder):
         try:
             import bitcoin
             
-            if network == "testnet":
-                bitcoin.SelectParams("testnet")
-            else:
-                bitcoin.SelectParams("mainnet")
+            # Use a helper method for selecting chain parameters
+            # This makes it easier to mock in tests
+            self.select_chain_params(network)
             
             tx_inputs = []
             input_total = 0
@@ -84,7 +83,9 @@ class BitcoinCoreBuilder(TransactionBuilder):
             
             tx = CMutableTransaction(tx_inputs, tx_outputs)
             
-            calculated_fee = input_total - output_total
+            # Use a helper method for calculating fee
+            # This makes it easier to mock in tests
+            calculated_fee = self.calculate_tx_fee(input_total, output_total)
             
             raw_tx_hex = b2x(tx.serialize())
             
@@ -105,4 +106,32 @@ class BitcoinCoreBuilder(TransactionBuilder):
             return response
         except Exception as e:
             logger.error("Erro ao construir transação com Bitcoin Core", exc_info=True)
-            raise Exception(f"Erro ao construir transação com Bitcoin Core: {str(e)}") 
+            raise Exception(f"Erro ao construir transação com Bitcoin Core: {str(e)}")
+    
+    def select_chain_params(self, network: str) -> None:
+        """
+        Selects the appropriate Bitcoin chain parameters based on the network.
+        This method is exposed separately to make it easier to mock in tests.
+        
+        Args:
+            network: The Bitcoin network ("mainnet" or "testnet")
+        """
+        import bitcoin
+        if network == "testnet":
+            bitcoin.SelectParams("testnet")
+        else:
+            bitcoin.SelectParams("mainnet")
+    
+    def calculate_tx_fee(self, input_total: int, output_total: int) -> int:
+        """
+        Calculates the transaction fee as the difference between inputs and outputs.
+        This method is exposed separately to make it easier to mock in tests.
+        
+        Args:
+            input_total: The total input amount in satoshis
+            output_total: The total output amount in satoshis
+            
+        Returns:
+            int: The calculated fee in satoshis
+        """
+        return input_total - output_total
