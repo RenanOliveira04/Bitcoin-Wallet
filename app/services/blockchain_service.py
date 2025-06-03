@@ -288,7 +288,7 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
                         "txid": utxo.get("txid"),
                         "vout": utxo.get("vout"),
                         "value": utxo.get("value"),
-                        "script": None,
+                        "script": utxo.get("scriptpubkey", ""),
                         "confirmations": utxo.get("status", {}).get("confirmations", 0),
                         "address": address
                     } for utxo in data]
@@ -300,7 +300,7 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
                         "txid": utxo.get("transaction_hash"),
                         "vout": utxo.get("index"),
                         "value": utxo.get("value"),
-                        "script": None,
+                        "script": utxo.get("script_hex", ""),
                         "confirmations": data.get("context", {}).get("state", 0) - utxo.get("block_id", 0) if utxo.get("block_id", 0) > 0 else 0,
                         "address": address
                     } for utxo in data.get("data", {}).get(address, {}).get("utxo", [])]
@@ -312,7 +312,7 @@ def get_utxos(address: str, network: str, offline_mode: bool = False) -> list:
                         "txid": utxo.get("txid"),
                         "vout": utxo.get("vout"),
                         "value": utxo.get("value"),
-                        "script": None,
+                        "script": utxo.get("scriptpubkey", ""),
                         "confirmations": 1 if utxo.get("status", {}).get("confirmed", False) else 0,
                         "address": address
                     } for utxo in data]
