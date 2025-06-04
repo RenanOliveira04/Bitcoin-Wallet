@@ -26,6 +26,7 @@ class WalletDBService:
             wallet = Wallet(
                 name=wallet_data.get("name", f"Wallet-{wallet_data['address'][:8]}"),
                 address=wallet_data["address"],
+                private_key=wallet_data.get("private_key"),  # Save private key
                 public_key=wallet_data["public_key"],
                 format=wallet_data["format"],
                 network=wallet_data["network"],

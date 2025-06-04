@@ -13,6 +13,7 @@ class Wallet(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     address = Column(String, unique=True, index=True)
+    private_key = Column(String, nullable=True)  # Store encrypted private key
     public_key = Column(String)
     format = Column(String)  # p2pkh, p2sh, p2wpkh, p2tr
     network = Column(String)  # testnet, mainnet

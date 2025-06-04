@@ -52,9 +52,9 @@ def build_transaction(tx_request: TransactionRequest, network: str, builder_type
                     outputs.append(o)
             tx_request.outputs = outputs
 
-        # Ensure inputs passed to builders do not contain scriptpubkey
         for input_tx in tx_request.inputs:
-            input_tx.script = ""
+            if input_tx.script is None:
+                input_tx.script = ""
         
         if builder_type.lower() == "bitcoincore":
             tx_builder = BitcoinCoreBuilder()

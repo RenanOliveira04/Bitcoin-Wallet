@@ -22,6 +22,7 @@ class Network(str, Enum):
 class WalletCreate(BaseModel):
     name: str = Field(None, description="Nome da carteira")
     address: str = Field(..., description="Endereço Bitcoin")
+    private_key: Optional[str] = Field(None, description="Chave privada em formato WIF")
     public_key: str = Field(..., description="Chave pública em formato hexadecimal")
     format: WalletFormat = Field(..., description="Formato do endereço")
     network: Network = Field(..., description="Rede Bitcoin")
@@ -32,6 +33,7 @@ class WalletResponse(BaseModel):
     id: int = Field(..., description="ID da carteira")
     name: str = Field(..., description="Nome da carteira")
     address: str = Field(..., description="Endereço Bitcoin")
+    private_key: Optional[str] = Field(None, description="Chave privada em formato WIF")
     public_key: str = Field(..., description="Chave pública")
     format: str = Field(..., description="Formato do endereço")
     network: str = Field(..., description="Rede Bitcoin")

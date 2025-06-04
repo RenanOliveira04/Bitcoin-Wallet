@@ -1,11 +1,12 @@
 # app/routers/tx.py
-from fastapi import APIRouter, HTTPException, Path, Query, Body
+from fastapi import APIRouter, HTTPException, Path, Query, Body, Request
 from app.models.transaction_status_models import TransactionStatusModel
 from app.models.utxo_models import TransactionRequest, TransactionResponse
 from app.services.tx_status_service import get_transaction_status
 from app.services.transaction.tx_builder_service import build_transaction
 from app.dependencies import get_network
 import logging
+import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -33,22 +34,26 @@ bloco, timestamp e link para explorador.
 
 ## Informações Retornadas:
 
-* **Status**: Estado atual da transação (confirmed, pending, not_found)
+* **Status**: Estado atual da transação (confirmed, confirming, pending, unknown)
 * **Confirmações**: Número de blocos confirmando a transação
 * **Bloco**: Altura e hash do bloco onde a transação foi incluída
 * **Timestamp**: Data e hora da confirmação
 * **Link para Explorador**: URL para visualizar a transação em um explorador de blockchain
 
-## Verificação de Confirmações:
+## Status da Transação:
 
-* **0 confirmações**: Transação no mempool, ainda não incluída em um bloco
-* **1-5 confirmações**: Transação confirmada, mas reversível em caso de reorganização da blockchain
-* **6+ confirmações**: Transação considerada irreversível (padrão para valores significativos)
+* **confirmed**: Transação tem 6+ confirmações, considerada irreversível
+* **confirming**: Transação tem 1-5 confirmações, em processo de confirmação
+* **pending**: Transação está no mempool, aguardando inclusão em um bloco
+* **unknown**: Transação não encontrada ou API indisponível
+* **unknown_cached**: Dados de uma transação anteriormente desconhecida, obtidos do cache
+* **confirmed_cached**: Dados confirmados obtidos do cache (pode estar desatualizado)
 
 ## Parâmetros:
 
 * **txid**: ID da transação (hash de 64 caracteres hexadecimais)
 * **network**: Rede Bitcoin (mainnet ou testnet)
+* **force_refresh**: (opcional) Force uma nova consulta ignorando o cache
 
 ## Exemplo de resposta:
 ```json
@@ -67,28 +72,40 @@ bloco, timestamp e link para explorador.
 
 * Uma transação precisa de pelo menos 1 confirmação para ser considerada válida
 * Para valores significativos, recomenda-se esperar 6+ confirmações
-* Transações podem ser rejeitadas da mempool se tiverem taxa muito baixa
+* O endpoint usa cache inteligente com TTL baseado no número de confirmações
+* Use force_refresh=true para obter dados atualizados ignorando o cache
             """,
             response_model=TransactionStatusModel)
 def get_tx_status(
     txid: str = Path(..., min_length=64, max_length=64, description="ID da transação (hash de 64 caracteres hexadecimais)"),
-    network: str = Query(None, description="Rede Bitcoin (mainnet ou testnet)")
+    network: str = Query(None, description="Rede Bitcoin (mainnet ou testnet)"),
+    force_refresh: bool = Query(False, description="Ignorar cache e forçar nova consulta à API")
 ):
     """
     Consulta o status atual de uma transação Bitcoin.
     
     - **txid**: ID da transação (hash de 64 caracteres hexadecimais)
     - **network**: Rede Bitcoin (mainnet ou testnet)
+    - **force_refresh**: Se True, ignora o cache e força uma nova consulta
     
     Retorna informações detalhadas sobre o status da transação.
     """
     try:
+        start_time = time.time()
+        logger.info(f"[TX_ENDPOINT] Requisição de status para txid={txid}, network={network}, force_refresh={force_refresh}")
+        
         network = network or get_network()
-        result = get_transaction_status(txid, network)
+        result = get_transaction_status(txid, network, force_refresh)
+        
+        elapsed = time.time() - start_time
+        logger.info(f"[TX_ENDPOINT] Resposta gerada em {elapsed:.3f}s: status={result.status}, confirmations={result.confirmations}")
+        
         return result
     except Exception as e:
-        logger.error(f"Erro ao consultar status da transação: {str(e)}", exc_info=True)
+        elapsed = time.time() - start_time
+        logger.error(f"[TX_ENDPOINT] Erro ao consultar status da transação após {elapsed:.3f}s: {str(e)}", exc_info=True)
         raise HTTPException(status_code=404, detail=f"Erro ao consultar transação: {str(e)}")
+
 
 @router.post("/build", 
             summary="Constrói uma transação Bitcoin não assinada",
@@ -142,51 +159,124 @@ Constrói uma transação Bitcoin não assinada com base nos inputs e outputs fo
 ## Exemplo de resposta:
 ```json
 {
-  "raw_transaction": "02000000013e283d571fe99cb1ebb0c012ec2c8bf785f5a39435de8636e67a65ec80daea17000000006a47304402204b3b868a9a17698b37f17c35d58a6383ec5226a8e68b39d90648b9cfd46633bf02204cff73c675f01a2ea7bf6bf80440f3f0e1bbb91e3c95064493b0ccc8a97c1352012103a13a20be306339d11e88a324ea96851ce728ba85548e8ff6f2386f9466e2ca8dffffffff0150c30000000000001976a914d0c59903c5bac2868760e90fd521a4665aa7652088ac00000000",
-  "txid": "a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890",
-  "fee": 10000
-}
-```
 
-## Tipos de Builders:
-
-* **bitcoinlib**: Utiliza a biblioteca bitcoinlib para construir transações (padrão)
-* **bitcoincore**: Utiliza a biblioteca python-bitcoinlib (compatível com Bitcoin Core)
-
-## Observações:
-
-* A transação retornada NÃO está assinada e precisa ser assinada antes de ser transmitida
-* Use o endpoint /sign para assinar a transação com sua chave privada
-* Os inputs devem corresponder a UTXOs não gastos associados à sua chave
+* O campo `fee_rate` é em satoshis por byte
+* O troco é calculado automaticamente e enviado de volta ao primeiro endereço de input
 * Certifique-se de que o total de saídas + taxa seja igual ao total de entradas
             """,
             response_model=TransactionResponse)
-def build_tx(
-    tx_request: TransactionRequest = Body(..., description="Dados da transação a ser construída"),
+async def build_tx(
+    request: Request,
     network: str = Query(None, description="Rede Bitcoin (mainnet ou testnet)"),
     builder_type: Optional[str] = Query("bitcoinlib", description="Tipo de builder a ser utilizado (bitcoinlib ou bitcoincore)")
 ):
     """
     Constrói uma transação Bitcoin não assinada.
     
-    - **tx_request**: Detalhes da transação, incluindo inputs e outputs
     - **network**: Rede Bitcoin (mainnet ou testnet)
     - **builder_type**: Tipo de builder a ser utilizado (bitcoinlib ou bitcoincore)
     
     Retorna a transação raw não assinada em formato hexadecimal.
     """
     try:
+        start_time = time.time()
+        raw_request = await request.json()
+        logger.info(f"[TX_BUILD] Recebendo requisição bruta: {raw_request}")
+        
+        if 'inputs' in raw_request and not raw_request['inputs']:
+            logger.error(f"[TX_BUILD] Lista de inputs vazia fornecida diretamente na requisição")
+            raise HTTPException(status_code=400, detail="Lista de inputs vazia")
+    except Exception as e:
+        logger.error(f"[TX_BUILD] Erro ao ler corpo da requisição: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Erro ao ler corpo da requisição: {str(e)}")
+    
+    try:
+        if 'from_address' in raw_request and 'inputs' not in raw_request:
+            logger.info(f"[TX_BUILD] Detectado formato do frontend, convertendo para formato do backend")
+            from app.services.blockchain_service import get_utxos
+            
+            from_address = raw_request['from_address']
+            net = network or get_network()
+            
+            utxos = get_utxos(from_address, net, force_cache=True)
+            
+            if not utxos:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Não há UTXOs disponíveis para o endereço {from_address}"
+                )
+            
+            inputs = []
+            inputs_append = inputs.append
+            
+            for utxo in utxos:
+                inputs_append({
+                    'txid': utxo['txid'],
+                    'vout': utxo['vout'],
+                    'value': utxo['value'],
+                    'script': utxo.get('script', ''),
+                    'address': from_address
+                })
+            
+            raw_request['inputs'] = inputs
+            del raw_request['from_address']
+            
+            adapter_time = time.time() - start_time
+            logger.info(f"[TX_BUILD] Convertido para formato do backend: {len(inputs)} inputs em {adapter_time:.3f}s")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[TX_BUILD] Erro ao converter formato: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Erro ao processar UTXOs: {str(e)}")
+    
+    if 'inputs' in raw_request and not raw_request['inputs']:
+        raise HTTPException(status_code=400, detail=f"Não há UTXOs disponíveis para realizar a transação")
+    
+    try:
+        tx_request = TransactionRequest(**raw_request)
+    except Exception as validation_error:
+        logger.error(f"[TX_BUILD] Erro de validação Pydantic: {str(validation_error)}")
+        error_detail = str(validation_error)
+        raise HTTPException(status_code=422, detail=f"Erro de validação: {error_detail}")
+    
+    try:
         network = network or get_network()
         logger.info(f"[TX_BUILD] Recebida solicitação para construir transação na rede {network} usando builder {builder_type}")
         
-        # Valida o tipo de builder
+        logger.info(f"[TX_BUILD] Detalhes da requisição:")
+        logger.info(f"[TX_BUILD] Inputs: {len(tx_request.inputs)}")
+        
+        for i, input_tx in enumerate(tx_request.inputs):
+            logger.info(f"[TX_BUILD] Input {i}: txid={input_tx.txid}, vout={input_tx.vout}, value={input_tx.value}, script={repr(input_tx.script)}, address={input_tx.address}")
+        
+        logger.info(f"[TX_BUILD] Outputs: {len(tx_request.outputs)}")
+        for i, output in enumerate(tx_request.outputs):
+            logger.info(f"[TX_BUILD] Output {i}: address={output.address}, value={output.value}")
+        
         valid_builders = ["bitcoinlib", "bitcoincore"]
         if builder_type.lower() not in valid_builders:
             logger.warning(f"[TX_BUILD] Tipo de builder inválido: {builder_type}. Utilizando bitcoinlib como padrão.")
             builder_type = "bitcoinlib"
         
+        for input_tx in tx_request.inputs:
+            if input_tx.script is None:
+                input_tx.script = ""
+                logger.info(f"[TX_BUILD] Script None convertido para string vazia para input txid={input_tx.txid}, vout={input_tx.vout}")
+        
         result = build_transaction(tx_request, network, builder_type)
+        total_time = time.time() - start_time
+        logger.info(f"[TX_BUILD] Transação construída com sucesso: {result.txid} em {total_time:.3f}s")
+        
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[TX_BUILD] Erro ao construir transação: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Erro ao construir transação: {str(e)}")
+        error_detail = str(e)
+        status_code = 500
+        
+        if hasattr(e, 'detail') and isinstance(e.detail, str):
+            error_detail = e.detail
+            
+        
+        raise HTTPException(status_code=status_code, detail=error_detail)

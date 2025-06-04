@@ -1,123 +1,175 @@
+from typing import Literal, Optional, Union
+from functools import lru_cache
+from pydantic import BaseModel, Field, field_validator
 from bitcoinlib.keys import HDKey, Key
-from app.models.address_models import AddressResponse
+
 from app.dependencies import get_bitcoinlib_network, mask_sensitive_data
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
-def generate_address(private_key: str, address_format: str = "p2wpkh", network: str = "testnet") -> AddressResponse:
+class AddressResponse(BaseModel):
+    """Response model for generated Bitcoin address"""
+    address: str
+    format: Literal["p2pkh", "p2sh", "p2wpkh", "p2tr"]
+    network: str = "testnet"
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "address": "tb1qxyz...",
+                "format": "p2wpkh",
+                "network": "testnet"
+            }
+        }
+
+class AddressRequest(BaseModel):
+    """Request model for address generation"""
+    private_key: str
+    format: Literal["p2pkh", "p2sh", "p2wpkh", "p2tr"] = "p2wpkh"
+    network: str = "testnet"
+    
+    @field_validator('private_key')
+    @classmethod
+    def validate_private_key(cls, v):
+        if not v or not isinstance(v, str):
+            raise ValueError("Private key must be a non-empty string")
+        return v.strip()
+    
+    @field_validator('network')
+    @classmethod
+    def validate_network(cls, v):
+        if v not in ["mainnet", "testnet"]:
+            raise ValueError("Network must be either 'mainnet' or 'testnet'")
+        return v
+
+def _load_private_key(private_key: str, network: str) -> Union[HDKey, Key]:
+    """Load private key using multiple methods"""
+    bitcoinlib_network = get_bitcoinlib_network(network)
+    
+    for method in [
+        lambda: Key(private_key, network=bitcoinlib_network),
+        lambda: HDKey.from_wif(private_key, network=bitcoinlib_network),
+        lambda: HDKey(private_key, network=bitcoinlib_network),
+    ]:
+        try:
+            return method()
+        except Exception as e:
+            logger.debug(f"[ADDRESS] Key loading method failed: {str(e)}")
+            continue
+    
+    raise ValueError("Failed to load private key. Invalid or incompatible format.")
+
+@lru_cache(maxsize=128)
+def generate_address(
+    private_key: str, 
+    address_format: Literal["p2pkh", "p2sh", "p2wpkh", "p2tr"] = "p2wpkh",
+    network: str = "testnet"
+) -> AddressResponse:
     """
-    Gera um endereço Bitcoin no formato especificado a partir de uma chave privada.
+    Generate a Bitcoin address in the specified format from a private key.
     
-    Esta função suporta diferentes formatos de endereço:
-    
-    1. P2PKH (Legacy): Pay to Public Key Hash - compatível com todas as carteiras
-    2. P2SH (SegWit Compatível): Pay to Script Hash - compatível com a maioria das carteiras
-    3. P2WPKH (Native SegWit): Pay to Witness Public Key Hash - taxas menores
-    4. P2TR (Taproot): Pay to Taproot - tecnologia mais recente com maior privacidade
+    Supported address formats:
+    - P2PKH (Legacy): Pay to Public Key Hash - compatible with all wallets
+    - P2SH (SegWit Compatible): Pay to Script Hash - compatible with most wallets
+    - P2WPKH (Native SegWit): Pay to Witness Public Key Hash - lower fees
+    - P2TR (Taproot): Pay to Taproot - latest technology with better privacy
     
     Args:
-        private_key (str): Chave privada em formato WIF ou hexadecimal
-        address_format (str): Formato do endereço ('p2pkh', 'p2sh', 'p2wpkh', 'p2tr')
-        network (str): Rede Bitcoin ('mainnet', 'testnet')
+        private_key: Private key in WIF or hex format
+        address_format: Address format ('p2pkh', 'p2sh', 'p2wpkh', 'p2tr')
+        network: Bitcoin network ('mainnet' or 'testnet')
     
     Returns:
-        AddressResponse: Objeto contendo o endereço gerado, formato e rede
+        AddressResponse: Object containing the generated address, format, and network
         
     Raises:
-        ValueError: Se o formato do endereço for inválido ou a chave privada
-            não puder ser carregada
+        ValueError: If address format is invalid or private key cannot be loaded
     """
     try:
-        bitcoinlib_network = get_bitcoinlib_network(network)
-        logger.info(f"[ADDRESS] Gerando endereço {address_format} para chave privada {mask_sensitive_data(private_key)}")
-        
-        key = None
-        for method in [
-            lambda: Key(private_key, network=bitcoinlib_network),
-            lambda: HDKey.from_wif(private_key, network=bitcoinlib_network),
-            lambda: HDKey(private_key, network=bitcoinlib_network),
-        ]:
-            try:
-                key = method()
-                break
-            except Exception as e:
-                logger.debug(f"[ADDRESS] Método de carregamento de chave falhou: {str(e)}")
-                continue
-        
-        if not key:
-            raise ValueError(f"Não foi possível carregar a chave privada. Formato inválido ou incompatível.")
-        
-        if address_format == "p2pkh":
-            try:
-                address = key.address()
-            except Exception as e:
-                logger.error(f"[ADDRESS] Erro ao gerar P2PKH: {str(e)}")
-                raise ValueError(f"Erro ao gerar endereço P2PKH: {str(e)}")
-                
-        elif address_format == "p2sh":
-            try:
-                if hasattr(key, 'address_p2sh'):
-                    address = key.address_p2sh()
-                elif hasattr(key, 'p2sh_address'):
-                    address = key.p2sh_address()
-                else:
-                    logger.warning("[ADDRESS] P2SH não disponível, usando P2PKH como fallback")
-                    address = key.address()
-                    address_format = "p2pkh"
-            except Exception as e:
-                logger.error(f"[ADDRESS] Erro ao gerar P2SH: {str(e)}")
-                address = key.address()
-                address_format = "p2pkh"
-                
-        elif address_format == "p2wpkh":
-            try:
-                if hasattr(key, 'address_segwit'):
-                    segwit_method = key.address_segwit
-                    if callable(segwit_method):
-                        address = segwit_method()
-                    else:
-                        address = segwit_method
-                elif hasattr(key, 'address_segwit_p2wpkh'):
-                    address = key.address_segwit_p2wpkh()
-                elif hasattr(key, 'p2wpkh_address'):
-                    address = key.p2wpkh_address()
-                else:
-                    logger.warning("[ADDRESS] P2WPKH não disponível, usando P2PKH como fallback")
-                    address = key.address()
-                    address_format = "p2pkh"
-            except Exception as e:
-                logger.error(f"[ADDRESS] Erro ao gerar P2WPKH: {str(e)}")
-                address = key.address()
-                address_format = "p2pkh"
-                
-        elif address_format == "p2tr":
-            try:
-                if hasattr(key, 'address_taproot'):
-                    taproot_method = key.address_taproot
-                    if callable(taproot_method):
-                        address = taproot_method()
-                    else:
-                        address = taproot_method
-                else:
-                    logger.warning("[ADDRESS] P2TR não disponível, usando P2PKH como fallback")
-                    address = key.address()
-                    address_format = "p2pkh"
-            except Exception as e:
-                logger.error(f"[ADDRESS] Erro ao gerar P2TR: {str(e)}")
-                address = key.address()
-                address_format = "p2pkh"
-        else:
-            raise ValueError(f"Formato de endereço inválido: {address_format}")
-        
-        logger.info(f"[ADDRESS] Endereço {address_format} gerado: {address}")
-        
-        return AddressResponse(
-            address=address,
+        request = AddressRequest(
+            private_key=private_key,
             format=address_format,
             network=network
         )
         
+        logger.info(f"[ADDRESS] Generating {request.format} address for private key {mask_sensitive_data(request.private_key)}")
+        
+        key = _load_private_key(request.private_key, request.network)
+        
+        address_generators = {
+            "p2pkh": _generate_p2pkh,
+            "p2sh": _generate_p2sh,
+            "p2wpkh": _generate_p2wpkh,
+            "p2tr": _generate_p2tr
+        }
+        
+        if request.format not in address_generators:
+            raise ValueError(f"Invalid address format: {request.format}")
+        
+        address = address_generators[request.format](key, request.network)
+        
+        logger.info(f"[ADDRESS] {request.format.upper()} address generated: {address}")
+        
+        return AddressResponse(
+            address=address,
+            format=request.format,
+            network=request.network
+        )
+        
     except Exception as e:
-        logger.error(f"[ADDRESS] Erro ao gerar endereço: {str(e)}")
-        raise ValueError(f"Erro ao gerar endereço: {str(e)}") 
+        logger.error(f"[ADDRESS] Error generating address: {str(e)}", exc_info=True)
+        raise ValueError(f"Failed to generate address: {str(e)}")
+
+def _generate_p2pkh(key: Union[HDKey, Key], network: str) -> str:
+    """Generate P2PKH (Legacy) address"""
+    try:
+        return key.address()
+    except Exception as e:
+        logger.error(f"[ADDRESS] Error generating P2PKH: {str(e)}")
+        raise ValueError(f"Failed to generate P2PKH address: {str(e)}")
+
+def _generate_p2sh(key: Union[HDKey, Key], network: str) -> str:
+    """Generate P2SH (SegWit Compatible) address"""
+    try:
+        if hasattr(key, 'address_p2sh'):
+            return key.address_p2sh()
+        elif hasattr(key, 'p2sh_address'):
+            return key.p2sh_address()
+        else:
+            logger.warning("[ADDRESS] P2SH not available, falling back to P2PKH")
+            return key.address()
+    except Exception as e:
+        logger.error(f"[ADDRESS] Error generating P2SH: {str(e)}")
+        return key.address()  
+
+def _generate_p2wpkh(key: Union[HDKey, Key], network: str) -> str:
+    """Generate P2WPKH (Native SegWit) address"""
+    try:
+        if hasattr(key, 'address_segwit'):
+            segwit = key.address_segwit
+            return segwit() if callable(segwit) else segwit
+        elif hasattr(key, 'address_segwit_p2wpkh'):
+            return key.address_segwit_p2wpkh()
+        elif hasattr(key, 'p2wpkh_address'):
+            return key.p2wpkh_address()
+        else:
+            logger.warning("[ADDRESS] P2WPKH not available, falling back to P2PKH")
+            return key.address()
+    except Exception as e:
+        logger.error(f"[ADDRESS] Error generating P2WPKH: {str(e)}")
+        return key.address() 
+
+def _generate_p2tr(key: Union[HDKey, Key], network: str) -> str:
+    """Generate P2TR (Taproot) address"""
+    try:
+        if hasattr(key, 'address_taproot'):
+            taproot = key.address_taproot
+            return taproot() if callable(taproot) else taproot
+        else:
+            logger.warning("[ADDRESS] P2TR not available, falling back to P2PKH")
+            return key.address()
+    except Exception as e:
+        logger.error(f"[ADDRESS] Error generating P2TR: {str(e)}")
+        return key.address()  # Fallback to P2PKH

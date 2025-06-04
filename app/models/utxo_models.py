@@ -1,13 +1,18 @@
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 from typing import List, Optional, Dict, Any, Union
 
 class Input(BaseModel):
     txid: str
     vout: int
     value: Optional[int] = None
-    script: Optional[str] = None
+    script: Optional[str] = ""
     sequence: Optional[int] = None
     address: Optional[str] = None
+    
+    def __init__(self, **data):
+        if "script" in data and data["script"] is None:
+            data["script"] = ""
+        super().__init__(**data)
     
     model_config = {
         "json_schema_extra": {
@@ -55,7 +60,11 @@ class Output(BaseModel):
 class TransactionRequest(BaseModel):
     inputs: List[Input]  
     outputs: List[Output] 
-    fee_rate: Optional[float] = None 
+    fee_rate: Optional[float] = None
+    private_key: Optional[str] = Field(
+        None, 
+        description="Chave privada para assinar a transação (opcional, mas necessário para transações assinadas)"
+    )
     
     model_config = {
         "json_schema_extra": {

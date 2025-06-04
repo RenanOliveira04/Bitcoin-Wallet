@@ -2,127 +2,177 @@ import requests
 import logging
 import time
 import random
-from typing import Dict, Any
-from app.models.fee_models import FeeEstimateModel
+from typing import Dict, List, Optional, TypedDict
 
 logger = logging.getLogger(__name__)
 
+class FeeEstimation(TypedDict):
+    high: float
+    medium: float
+    low: float
+    min: float
+    timestamp: int
+    unit: str
+    source: str
+
+class FeeAPI(TypedDict):
+    name: str
+    url: str
+    parser: callable
+    timeout: int
+    priority: int
+
 class FeeEstimator:
-    """Serviço para estimativa de taxas de transação Bitcoin"""
+    def __init__(self, cache_duration: int = 300):
+        self.cache_duration = cache_duration
+        self._last_update: Dict[str, float] = {}
+        self._cache: Dict[str, FeeEstimation] = {}
     
-    def __init__(self):
-        self.fee_cache = {}
-        self.cache_time = 0
-        self.cache_duration = 300  # 5 minutos
+    def _get_cache_key(self, network: str) -> str:
+        return f"fee_estimate_{network}"
     
-    def _is_cache_valid(self) -> bool:
-        """Verifica se o cache de taxas ainda é válido"""
-        return (time.time() - self.cache_time) < self.cache_duration and self.fee_cache
+    def _is_cache_valid(self, network: str) -> bool:
+        cache_key = self._get_cache_key(network)
+        last_update = self._last_update.get(cache_key, 0)
+        return (time.time() - last_update) < self.cache_duration and cache_key in self._cache
     
-    def estimate_from_mempool(self, network: str = "testnet") -> Dict[str, Any]:
-        """
-        Estima taxas com base nas condições atuais da mempool.
-        
-        Args:
-            network: Rede Bitcoin ('testnet' ou 'mainnet')
-            
-        Returns:
-            Dicionário com estimativas de taxas para diferentes prioridades
-        """
-        try:
-            if self._is_cache_valid():
-                logger.debug("Usando cache de taxas")
-                return self.fee_cache
-            
-            if network == "mainnet":
-                url = "https://mempool.space/api/v1/fees/recommended"
-            else:
-                url = "https://mempool.space/testnet/api/v1/fees/recommended"
-            
-            logger.info(f"Consultando taxas da mempool para rede {network}")
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            
-            fee_data = response.json()
-            
-            result = {
-                "fee_rate": fee_data.get("hourFee", 5), 
-                "high_priority": fee_data.get("fastestFee", 10),  
-                "medium_priority": fee_data.get("halfHourFee", 5),  
-                "low_priority": fee_data.get("economyFee", 1),  
-                "timestamp": int(time.time()),
-                "unit": "sat/vB"
+    def _update_cache(self, network: str, data: FeeEstimation):
+        cache_key = self._get_cache_key(network)
+        self._cache[cache_key] = data
+        self._last_update[cache_key] = time.time()
+    
+    def _get_cached_estimate(self, network: str) -> Optional[FeeEstimation]:
+        cache_key = self._get_cache_key(network)
+        return self._cache.get(cache_key)
+    
+    def _get_fee_apis(self, network: str) -> List[FeeAPI]:
+        base_url = "testnet/api" if network == "testnet" else "api"
+        return [
+            {
+                "name": "mempool.space",
+                "url": f"https://mempool.space/{base_url}/v1/fees/recommended",
+                "parser": self._parse_mempool_response,
+                "timeout": 5,
+                "priority": 1
+            },
+            {
+                "name": "blockstream.info",
+                "url": f"https://blockstream.info/{base_url}/fee-estimates",
+                "parser": self._parse_blockstream_response,
+                "timeout": 5,
+                "priority": 2
+            },
+            {
+                "name": "blockcypher.com",
+                "url": f"https://api.blockcypher.com/v1/btc/{'test3' if network == 'testnet' else 'main'}",
+                "parser": self._parse_blockcypher_response,
+                "timeout": 5,
+                "priority": 3
             }
-            
-            self.fee_cache = result
-            self.cache_time = time.time()
-            
-            return result
-        except Exception as e:
-            logger.error(f"Erro ao obter taxas da mempool: {str(e)}", exc_info=True)
-            return self._fallback_estimation(network)
+        ]
     
-    def _fallback_estimation(self, network: str) -> Dict[str, Any]:
-        """Fornece uma estimativa de fallback quando as APIs falham"""
-        base_fee = 5 if network == "mainnet" else 1
-        
-        high = max(1, base_fee * 2 + random.uniform(-0.5, 0.5))
-        med = max(1, base_fee + random.uniform(-0.3, 0.3))
-        low = max(0.5, base_fee / 2 + random.uniform(-0.1, 0.1))
-        
+    def _parse_mempool_response(self, data: Dict) -> FeeEstimation:
         return {
-            "fee_rate": med,
-            "high_priority": high,
-            "medium_priority": med,
-            "low_priority": low,
+            "high": data.get("fastestFee", 20),
+            "medium": data.get("halfHourFee", 10),
+            "low": data.get("hourFee", 5),
+            "min": data.get("minimumFee", 1),
+            "timestamp": int(time.time()),
+            "unit": "sat/vB",
+            "source": "mempool.space"
+        }
+    
+    def _parse_blockstream_response(self, data: Dict) -> FeeEstimation:
+        return {
+            "high": int(data.get("2", 20)),
+            "medium": int(data.get("6", 10)),
+            "low": int(data.get("12", 5)),
+            "min": 1,
+            "timestamp": int(time.time()),
+            "unit": "sat/vB",
+            "source": "blockstream.info"
+        }
+    
+    def _parse_blockcypher_response(self, data: Dict) -> FeeEstimation:
+        return {
+            "high": data.get("high_fee_per_kb", 20000) // 1000,  
+            "medium": data.get("medium_fee_per_kb", 10000) // 1000,
+            "low": data.get("low_fee_per_kb", 5000) // 1000,
+            "min": 1,
+            "timestamp": int(time.time()),
+            "unit": "sat/vB",
+            "source": "blockcypher.com"
+        }
+    
+    def _get_fallback_estimation(self, network: str) -> FeeEstimation:
+        base_fee = 5 if network == "mainnet" else 1
+        return {
+            "high": max(1, base_fee * 2 + random.uniform(-0.5, 0.5)),
+            "medium": max(1, base_fee + random.uniform(-0.3, 0.3)),
+            "low": max(0.5, base_fee / 2 + random.uniform(-0.1, 0.1)),
+            "min": 1,
             "timestamp": int(time.time()),
             "unit": "sat/vB",
             "source": "fallback"
         }
+    
+    def get_fee_estimate(self, network: str = "testnet") -> FeeEstimation:
+        if self._is_cache_valid(network):
+            return self._get_cached_estimate(network)
+        
+        apis = self._get_fee_apis(network)
+        last_error = None
+        
+        for api in sorted(apis, key=lambda x: x["priority"]):
+            try:
+                logger.info(f"[FEE] Trying {api['name']} for {network} fees")
+                response = requests.get(api['url'], timeout=api['timeout'])
+                response.raise_for_status()
+                
+                result = api['parser'](response.json())
+                self._update_cache(network, result)
+                logger.info(f"[FEE] Successfully got fees from {api['name']}")
+                return result
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"[FEE] Failed to get fees from {api['name']}: {str(e)}")
+                continue
+        
+        logger.warning("[FEE] All fee APIs failed, using fallback")
+        fallback = self._get_fallback_estimation(network)
+        self._update_cache(network, fallback)
+        return fallback
 
 fee_estimator = FeeEstimator()
 
-def get_fee_estimate(network: str = "testnet"):
+def get_fee_estimate(network: str = "testnet") -> FeeEstimation:
     """
-    Estima a taxa ideal para transações Bitcoin com base nas condições da rede.
-    
-    Esta função consulta APIs externas de estimativa de taxa para obter
-    recomendações atualizadas para diferentes níveis de prioridade. As taxas
-    são expressas em satoshis por byte virtual (sat/vB).
-    
-    Níveis de prioridade disponíveis:
-    - Alta: Para transações urgentes (~10-20 minutos)
-    - Média: Para transações normais (~1-3 blocos)
-    - Baixa: Para transações não-urgentes (~6+ blocos)
-    - Mínima: Taxa mínima para aceitação eventual
+    Get fee estimates for the specified network.
     
     Args:
-        network (str, opcional): Rede Bitcoin ('mainnet' ou 'testnet').
-            Padrão é "testnet".
-    
-    Returns:
-        Dict: Estimativas de taxa contendo:
-            - high (float): Taxa alta para confirmação rápida
-            - medium (float): Taxa média para confirmação moderada
-            - low (float): Taxa baixa para confirmação lenta
-            - min (float): Taxa mínima aceitável
-            - timestamp (int): Timestamp da estimativa
-            - unit (str): Unidade da taxa (sat/vB)
+        network: Bitcoin network ('mainnet' or 'testnet')
         
-    Raises:
-        Exception: Se ocorrer um erro ao consultar a API de taxas
-            (em caso de falha, valores de fallback são retornados)
+    Returns:
+        FeeEstimation: Fee estimates with different priorities
     """
-    fee_data = fee_estimator.estimate_from_mempool(network)
-    high = fee_data['high_priority']
-    medium = fee_data['medium_priority']
-    low = fee_data['low_priority']
-    min = fee_data['fee_rate']
-    return FeeEstimateModel(
-        high=high,
-        medium=medium,
-        low=low,
-        min=min,
-        timestamp=int(time.time()),
-        unit="sat/vB"
-    ) 
+    try:
+        fees = fee_estimator.get_fee_estimate(network)
+        return FeeEstimateModel(
+            high=fees["high"],
+            medium=fees["medium"],
+            low=fees["low"],
+            min=fees["min"],
+            timestamp=fees["timestamp"],
+            unit=fees["unit"]
+        )
+    except Exception as e:
+        logger.error(f"[FEE] Error getting fee estimate: {str(e)}")
+        return FeeEstimateModel(
+            high=20,
+            medium=10,
+            low=5,
+            min=1,
+            timestamp=int(time.time()),
+            unit="sat/vB"
+        )

@@ -1,7 +1,7 @@
 # app/routers/utxo.py
 from fastapi import APIRouter, HTTPException
 from app.models.utxo_models import TransactionRequest, TransactionResponse
-from app.services.utxo_service import create_transaction
+from app.services.utxo_service import build_transaction
 from app.dependencies import get_network
 import logging
 
@@ -112,14 +112,10 @@ def build_transaction(request: TransactionRequest):
     Retorna a transação construída e informações sobre ela.
     """
     try:
-        result = create_transaction(
-            inputs=request.inputs,
-            outputs=request.outputs,
-            fee_rate=request.fee_rate or 1.0,
+        return build_transaction(
+            request=request,
             network=get_network()
         )
-        
-        return result
     except Exception as e:
         logger.error(f"Erro ao construir transação: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))

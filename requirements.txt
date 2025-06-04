@@ -17,6 +17,7 @@ httpx==0.27.0
 # HTTP e comunicação
 requests==2.32.3
 urllib3==2.3.0
+aiohttp==3.9.1
 h11==0.14.0
 anyio==4.9.0
 idna==3.10
