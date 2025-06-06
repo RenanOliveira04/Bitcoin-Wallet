@@ -65,7 +65,7 @@ O projeto possui três ambientes distintos:
 ## Instalação
 
 ### Usuários
-1. Baixe o executável mais recente da [página de releases](https://github.com/seu-usuario/bitcoin-wallet/releases)
+1. Baixe o executável mais recente da [página de releases](https://github.com/RenanOliveira04/bitcoin-wallet/releases)
 2. Execute o arquivo `bitcoin-wallet.exe` (Windows) ou `bitcoin-wallet` (Linux)
 3. O servidor local iniciará automaticamente na porta 8000
 
