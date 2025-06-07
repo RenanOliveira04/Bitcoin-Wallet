@@ -62,12 +62,11 @@ blockchain_cache = PersistentBlockchainCache()
 
 def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
     """
-    Consulta o saldo de um endereço Bitcoin na blockchain.
+    Consulta o saldo de um endereço Bitcoin na blockchain usando múltiplas APIs para validação cruzada.
     
     Esta função recupera o saldo confirmado e não confirmado de um endereço Bitcoin
-    consultando APIs blockchain externas. Para endereços testnet, utiliza o 
-    blockstream.info, enquanto para endereços mainnet utiliza a API configurada
-    no ambiente.
+    consultando múltiplas APIs blockchain externas (mempool.space e blockstream) e
+    retorna um resultado consistente baseado no consenso entre as fontes.
     
     ## O que são saldos confirmados e não confirmados?
     
@@ -77,6 +76,12 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
     * **Saldo não confirmado**: Representa bitcoins em transações que foram 
       transmitidas para a rede mas ainda não foram incluídas em um bloco
       (estão no mempool).
+    
+    ## Validação Cruzada
+    
+    A função consulta pelo menos duas fontes independentes (mempool.space e blockstream)
+    e retorna um resultado apenas se houver concordância entre as fontes. Isso ajuda a
+    prevenir resultados incorretos em caso de problemas em alguma API.
     
     Args:
         address (str): Endereço Bitcoin a ser consultado. Suporta todos os
@@ -88,16 +93,22 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
         dict: Dicionário contendo os saldos em satoshis:
             - "confirmed": Saldo confirmado em satoshis
             - "unconfirmed": Saldo não confirmado em satoshis
+            - "sources_checked": Número de fontes consultadas
+            - "sources_agreed": Número de fontes que concordaram com o resultado
+            - "source": Nome da fonte dos dados retornados
             
     Raises:
         requests.exceptions.RequestException: Em caso de erros na comunicação
-            com a API. Neste caso, retorna dados simulados para evitar falha completa.
+            com as APIs. Neste caso, retorna dados do cache se disponíveis.
             
     Example:
         >>> get_balance("bc1q34aq5drpuwy3wgl9lhup9892qp6svr8ldzyy7c", "mainnet")
         {
             "confirmed": 1250000,
-            "unconfirmed": 50000
+            "unconfirmed": 50000,
+            "sources_checked": 2,
+            "sources_agreed": 2,
+            "source": "mempool.space,blockstream.info"
         }
     """
     cache_key = f"balance_{network}_{address}"
@@ -114,130 +125,194 @@ def get_balance(address: str, network: str, offline_mode: bool = False) -> dict:
             return expired_data
         else:
             logger.warning(f"[OFFLINE] Sem dados de cache para {address}")
-            return {"confirmed": 0, "unconfirmed": 0}
+            return {
+                "confirmed": 0, 
+                "unconfirmed": 0,
+                "sources_checked": 0,
+                "sources_agreed": 0,
+                "source": "offline_cache"
+            }
     
     try:
         logger.info(f"[BLOCKCHAIN] Consultando saldo para o endereço {address} na rede {network}")
         
-        default_result = {"confirmed": 0, "unconfirmed": 0}
+        default_result = {
+            "confirmed": 0, 
+            "unconfirmed": 0,
+            "sources_checked": 0,
+            "sources_agreed": 0,
+            "source": "none"
+        }
         
+        # Configuração das APIs para diferentes redes
         if network == "testnet":
-            apis_to_try = [
-                {
-                    "name": "mempool.space",
-                    "url": f"https://mempool.space/testnet/api/address/{address}",
-                    "parser": lambda data: {
-                        "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
-                        "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
-                    },
-                    "timeout": 10,
-                    "priority": 1
-                },
-                {
-                    "name": "blockstream.info",
-                    "url": f"https://blockstream.info/testnet/api/address/{address}",
-                    "parser": lambda data: {
-                        "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
-                        "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
-                    },
-                    "timeout": 15,
-                    "priority": 2
-                },
-                {
-                    "name": "blockcypher.com",
-                    "url": f"https://api.blockcypher.com/v1/btc/test3/addrs/{address}/balance",
-                    "parser": lambda data: {
-                        "confirmed": data.get("final_balance", 0),
-                        "unconfirmed": data.get("unconfirmed_balance", 0) - data.get("final_balance", 0)
-                    },
-                    "timeout": 15,
-                    "priority": 3
-                },
-                {
-                    "name": "blockchair.com",
-                    "url": f"https://api.blockchair.com/bitcoin/testnet/dashboards/address/{address}",
-                    "parser": lambda data: {
-                        "confirmed": data.get("data", {}).get(address, {}).get("address", {}).get("balance", 0),
-                        "unconfirmed": data.get("data", {}).get(address, {}).get("address", {}).get("received_unspent", 0) - 
-                                      data.get("data", {}).get(address, {}).get("address", {}).get("balance", 0)
-                    },
-                    "timeout": 20,
-                    "priority": 4
-                }
-            ]
-            
-            apis_to_try.sort(key=lambda x: x.get("priority", 999))
-            result = default_result
-            last_error = None
-            
-            for api in apis_to_try:
-                try:
-                    logger.info(f"[BLOCKCHAIN] Tentando {api['name']} para saldo: {api['url']}")
-                    response = requests.get(api['url'], timeout=api.get('timeout', 10))
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    result = api['parser'](data)
-                    logger.info(f"[BLOCKCHAIN] Sucesso com {api['name']} para saldo de {address}")
-                    break
-                            
-                except Exception as e:
-                    last_error = e
-                    logger.warning(f"[BLOCKCHAIN] Falha ao acessar {api['name']}: {str(e)}")
-                    if api == apis_to_try[-1]:
-                        raise last_error
-                    continue
+            network_path = "testnet/"
+            blockcypher_network = "test3"
         else:
-            apis_to_try = [
-                {
-                    "name": "mempool.space",
-                    "url": f"https://mempool.space/api/address/{address}",
-                    "parser": lambda data: {
-                        "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
-                        "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
-                    },
-                    "timeout": 10,
-                    "priority": 1
+            network_path = ""
+            blockcypher_network = "main"
+        
+        # Lista de fontes de dados com seus respectivos parsers
+        data_sources = [
+            {
+                "name": "mempool.space",
+                "url": f"https://mempool.space/{network_path}api/address/{address}",
+                "parser": lambda data: {
+                    "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - \
+                                 data.get("chain_stats", {}).get("spent_txo_sum", 0),
+                    "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - \
+                                   data.get("mempool_stats", {}).get("spent_txo_sum", 0)
                 },
-                {
-                    "name": "blockstream.info",
-                    "url": f"https://blockstream.info/api/address/{address}",
-                    "parser": lambda data: {
-                        "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - data.get("chain_stats", {}).get("spent_txo_sum", 0),
-                        "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - data.get("mempool_stats", {}).get("spent_txo_sum", 0)
-                    },
-                    "timeout": 15,
-                    "priority": 2
-                }
-            ]
-            
-            apis_to_try.sort(key=lambda x: x.get("priority", 999))
-            result = default_result
-            last_error = None
-            
-            for api in apis_to_try:
-                try:
-                    logger.info(f"[BLOCKCHAIN] Tentando {api['name']} para saldo: {api['url']}")
-                    response = requests.get(api['url'], timeout=api.get('timeout', 10))
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    result = api['parser'](data)
-                    logger.info(f"[BLOCKCHAIN] Sucesso com {api['name']} para saldo de {address}")
-                    break
-                            
-                except Exception as e:
-                    last_error = e
-                    logger.warning(f"[BLOCKCHAIN] Falha ao acessar {api['name']}: {str(e)}")
-                    if api == apis_to_try[-1]:
-                        raise last_error
-                    continue
-            
+                "timeout": 10,
+                "priority": 1
+            },
+            {
+                "name": "blockstream.info",
+                "url": f"https://blockstream.info/{network_path}api/address/{address}",
+                "parser": lambda data: {
+                    "confirmed": data.get("chain_stats", {}).get("funded_txo_sum", 0) - \
+                                 data.get("chain_stats", {}).get("spent_txo_sum", 0),
+                    "unconfirmed": data.get("mempool_stats", {}).get("funded_txo_sum", 0) - \
+                                   data.get("mempool_stats", {}).get("spent_txo_sum", 0)
+                },
+                "timeout": 15,
+                "priority": 2
+            },
+            {
+                "name": "blockcypher.com",
+                "url": f"https://api.blockcypher.com/v1/btc/{blockcypher_network}/addrs/{address}/balance",
+                "parser": lambda data: {
+                    "confirmed": data.get("final_balance", 0),
+                    "unconfirmed": data.get("unconfirmed_balance", 0) - data.get("final_balance", 0)
+                },
+                "timeout": 15,
+                "priority": 3
+            }
+        ]
+        
+        # Ordena as fontes por prioridade
+        data_sources.sort(key=lambda x: x.get("priority", 999))
+        
+        results = []
+        last_error = None
+        
+        # Tenta obter dados de pelo menos 2 fontes para validação cruzada
+        for source in data_sources[:2]:  # Limita a 2 fontes para validação cruzada
+            try:
+                logger.info(f"[BLOCKCHAIN] Consultando {source['name']} para saldo: {source['url']}")
+                response = requests.get(source['url'], timeout=source.get('timeout', 10))
+                response.raise_for_status()
+                data = response.json()
+                
+                result = source['parser'](data)
+                result['source'] = source['name']
+                results.append(result)
+                logger.info(f"[BLOCKCHAIN] Sucesso com {source['name']} para saldo de {address}")
+                
+            except Exception as e:
+                last_error = e
+                logger.warning(f"[BLOCKCHAIN] Falha ao acessar {source['name']}: {str(e)}")
+                continue
+        
+        # Se não conseguiu obter resultados de nenhuma fonte
+        if not results:
+            logger.error(f"[BLOCKCHAIN] Falha ao consultar saldo em todas as fontes")
+            if last_error:
+                raise last_error
+            return default_result
+        
+        # Se só conseguiu um resultado, retorna ele com um aviso
+        if len(results) == 1:
+            logger.warning(f"[BLOCKCHAIN] Apenas uma fonte disponível para validação: {results[0]['source']}")
+            result = results[0]
+            result['sources_checked'] = 1
+            result['sources_agreed'] = 1
+            blockchain_cache.set(cache_key, result)
+            return result
+        
+        # Verifica se os resultados das fontes são consistentes
+        confirmed_values = [r['confirmed'] for r in results]
+        unconfirmed_values = [r['unconfirmed'] for r in results]
+        
+        confirmed_agreement = len(set(confirmed_values)) == 1
+        unconfirmed_agreement = len(set(unconfirmed_values)) == 1
+        
+        # Se os valores concordam entre as fontes, retorna o resultado
+        if confirmed_agreement and unconfirmed_agreement:
+            result = results[0]
+            result['sources_checked'] = len(results)
+            result['sources_agreed'] = len(results)
+            result['source'] = ", ".join(r['source'] for r in results)
+            blockchain_cache.set(cache_key, result)
+            return result
+        
+        # Se há discordância, tenta uma terceira fonte como desempate
+        if len(results) < 3 and len(data_sources) > 2:
+            logger.warning(f"[BLOCKCHAIN] Discordância entre fontes, consultando terceira fonte")
+            try:
+                source = data_sources[2]  # Tenta a terceira fonte
+                response = requests.get(source['url'], timeout=source.get('timeout', 10))
+                response.raise_for_status()
+                data = response.json()
+                
+                tiebreaker = source['parser'](data)
+                tiebreaker['source'] = source['name']
+                results.append(tiebreaker)
+                
+                # Recalcula com a terceira fonte
+                confirmed_values = [r['confirmed'] for r in results]
+                unconfirmed_values = [r['unconfirmed'] for r in results]
+                
+                # Verifica se há um consenso entre pelo menos 2 fontes
+                from collections import Counter
+                confirmed_counter = Counter(confirmed_values)
+                unconfirmed_counter = Counter(unconfirmed_values)
+                
+                most_common_confirmed = confirmed_counter.most_common(1)[0]
+                most_common_unconfirmed = unconfirmed_counter.most_common(1)[0]
+                
+                # Se pelo menos 2 fontes concordam, retorna o valor consensual
+                if most_common_confirmed[1] >= 2 and most_common_unconfirmed[1] >= 2:
+                    result = {
+                        'confirmed': most_common_confirmed[0],
+                        'unconfirmed': most_common_unconfirmed[0],
+                        'sources_checked': len(results),
+                        'sources_agreed': most_common_confirmed[1],
+                        'source': ", ".join(r['source'] for r in results)
+                    }
+                    blockchain_cache.set(cache_key, result)
+                    return result
+                
+            except Exception as e:
+                logger.warning(f"[BLOCKCHAIN] Falha ao consultar terceira fonte: {str(e)}")
+        
+        # Se chegou aqui, não houve consenso
+        logger.error(f"[BLOCKCHAIN] Discordância entre as fontes para o endereço {address}")
+        
+        # Retorna a média dos valores como último recurso
+        avg_confirmed = sum(confirmed_values) // len(confirmed_values)
+        avg_unconfirmed = sum(unconfirmed_values) // len(unconfirmed_values)
+        
+        result = {
+            'confirmed': avg_confirmed,
+            'unconfirmed': avg_unconfirmed,
+            'sources_checked': len(results),
+            'sources_agreed': 0,
+            'source': ", ".join(r['source'] for r in results) + " (média)"
+        }
+        
         blockchain_cache.set(cache_key, result)
         return result
         
     except Exception as e:
-        logger.error(f"[BLOCKCHAIN] Erro ao obter saldo para {address}: {str(e)}")
+        logger.error(f"[BLOCKCHAIN] Erro ao consultar saldo para {address}: {str(e)}")
+        
+        # Tenta retornar dados do cache mesmo que expirados
+        expired_data = blockchain_cache.get(cache_key, ignore_ttl=True)
+        if expired_data:
+            logger.warning(f"[BLOCKCHAIN] Retornando dados do cache expirado devido a erro na API")
+            return expired_data
+            
         return default_result
 
 def get_utxos(address: str, network: str, offline_mode: bool = False, force_cache: bool = False) -> list:

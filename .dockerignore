@@ -1,0 +1,49 @@
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Local development
+*.log
+local_settings.py
+db.sqlite3
+.data/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Environment files
+.env
+.env.*
+!.env.example

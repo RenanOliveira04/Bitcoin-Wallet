@@ -9,6 +9,7 @@ from datetime import datetime
 from bitcoinlib.keys import HDKey, BKeyError
 from bitcoinlib.mnemonic import Mnemonic
 from app.dependencies import get_bitcoinlib_network, mask_sensitive_data
+from app.config import KEYS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -347,7 +348,7 @@ def _get_derivation_path(request: KeyRequest) -> str:
         
     return f"m/{purpose}'/{coin_type}'/0'/0/0"
 
-def save_key_to_file(key_data: Union[KeyResponse, Dict], output_path: str = None) -> str:
+def save_key_to_file(key_data: Union[KeyResponse, Dict], output_path: str = None):
     """
     Save key data to a JSON file with security warnings.
     
@@ -363,43 +364,36 @@ def save_key_to_file(key_data: Union[KeyResponse, Dict], output_path: str = None
         ValueError: If key_data is invalid
     """
     try:
-        if not isinstance(key_data, KeyResponse):
-            key_data = KeyResponse(**key_data)
+        if isinstance(key_data, KeyResponse):
+            data = key_data.model_dump()
+        elif isinstance(key_data, dict):
+            data = key_data.copy()
+        else:
+            raise ValueError("key_data must be a KeyResponse or dict")
             
+        # Generate a default filename if none provided
         if not output_path:
-            home = str(Path.home())
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            os.makedirs(os.path.join(home, ".bitcoin-wallet", "keys"), exist_ok=True)
-            output_path = os.path.join(home, ".bitcoin-wallet", "keys", f"bitcoin_key_{timestamp}.json")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            address = data.get('address', 'key')
+            filename = f"wallet_{address}_{timestamp}.json"
+            output_path = str(KEYS_DIR / filename)
         
-        content = {
-            "private_key": key_data.private_key,
-            "public_key": key_data.public_key,
-            "address": key_data.address,
-            "key_format": key_data.key_format,
-            "network": key_data.network,
-            "timestamp": key_data.timestamp.isoformat(),
-            "_warnings": [
-                "WARNING: This file contains sensitive information!",
-                "Keep this file secure and never share it with anyone.",
-                "Anyone with access to this file can access your funds.",
-                f"Generated on: {datetime.now(datetime.timezone.utc).isoformat()}"
-            ]
+        # Add security warnings
+        data['_warning'] = {
+            'message': 'KEEP THIS FILE SECURE!',
+            'details': 'This file contains sensitive information including private keys. Anyone with access to this file can access your funds.'
         }
         
-        if key_data.mnemonic:
-            content["mnemonic"] = key_data.mnemonic
-        if key_data.derivation_path:
-            content["derivation_path"] = key_data.derivation_path
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
+        # Write to file with pretty printing
         with open(output_path, 'w') as f:
-            json.dump(content, f, indent=2)
-        
-        os.chmod(output_path, 0o600)
-        
-        logger.info(f"[KEYS] Key data saved to {output_path}")
+            json.dump(data, f, indent=2)
+            
+        logger.info(f"Key data saved to {output_path}")
         return output_path
         
     except Exception as e:
-        logger.error(f"[KEYS] Error saving key to file: {str(e)}", exc_info=True)
+        logger.error(f"Error saving key to file: {e}")
         raise IOError(f"Failed to save key to file: {str(e)}")

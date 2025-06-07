@@ -26,6 +26,7 @@ class WalletCreate(BaseModel):
     public_key: str = Field(..., description="Chave pública em formato hexadecimal")
     format: WalletFormat = Field(..., description="Formato do endereço")
     network: Network = Field(..., description="Rede Bitcoin")
+    key_generation_method: str = Field("entropy", description="Método de geração da chave (entropy, bip39, bip32)")
     derivation_path: Optional[str] = Field(None, description="Caminho de derivação BIP32")
     mnemonic: Optional[str] = Field(None, description="Frase mnemônica")
 
@@ -37,6 +38,7 @@ class WalletResponse(BaseModel):
     public_key: str = Field(..., description="Chave pública")
     format: str = Field(..., description="Formato do endereço")
     network: str = Field(..., description="Rede Bitcoin")
+    key_generation_method: str = Field(..., description="Método de geração da chave (entropy, bip39, bip32)")
     derivation_path: Optional[str] = Field(None, description="Caminho de derivação BIP32")
     mnemonic: Optional[str] = Field(None, description="Frase mnemônica")
     created_at: datetime = Field(..., description="Data de criação")
@@ -87,7 +89,22 @@ def get_wallet(address: str, db: Session = Depends(get_db)):
     wallet = WalletDBService.get_wallet_by_address(db, address)
     if wallet is None:
         raise HTTPException(status_code=404, detail="Carteira não encontrada")
-    return wallet
+    
+    wallet_dict = wallet.__dict__.copy()
+    
+    wallet_dict.pop('_sa_instance_state', None)
+    
+    if hasattr(wallet, 'private_key') and wallet.private_key:
+        wallet_dict['private_key'] = wallet.private_key
+    else:
+        wallet_dict['private_key'] = None
+        
+    required_fields = ['id', 'name', 'address', 'public_key', 'format', 'network', 'key_generation_method', 'created_at']
+    for field in required_fields:
+        if field not in wallet_dict:
+            wallet_dict[field] = getattr(wallet, field, None)
+    
+    return wallet_dict
 
 @router.delete("/{address}", description="Remove uma carteira do armazenamento local")
 def delete_wallet(address: str, db: Session = Depends(get_db)):

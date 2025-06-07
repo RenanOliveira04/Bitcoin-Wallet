@@ -145,6 +145,13 @@ def decode_tx_basic(tx_hex: str) -> dict:
             
         index = 4
         
+        # Check for SegWit marker and flag
+        is_segwit = False
+        if index + 2 <= len(tx_bytes) and tx_bytes[index] == 0x00 and tx_bytes[index+1] in [0x01, 0x02]:
+            logger.debug("[DECODE] Transação SegWit detectada")
+            is_segwit = True
+            index += 2  # Skip marker and flag bytes
+            
         if index >= len(tx_bytes):
             return {"valid": False, "error": "Fim inesperado dos dados ao ler contador de inputs"}
             
@@ -159,6 +166,7 @@ def decode_tx_basic(tx_hex: str) -> dict:
                     "details": {
                         "position": index,
                         "bytes": tx_bytes[index:index+8].hex(),
+                        "is_segwit": is_segwit,
                         "context": {
                             "prev_bytes": tx_bytes[max(0, index-8):index].hex(),
                             "next_bytes": tx_bytes[index:index+16].hex()
@@ -300,7 +308,8 @@ def get_broadcast_services(network: str, tx_hex: str) -> List[Dict[str, Any]]:
             "name": "mempool.space",
             "url": f"https://mempool.space/{network_path}api/tx",
             "method": "post",
-            "data": {"tx": tx_hex},
+            "data": tx_hex,  # Send raw hex as request body
+            "headers": {"Content-Type": "text/plain"},  # Set proper content type
             "txid_field": "txid",
             "explorer": f"https://mempool.space/{network_path}tx/{{txid}}",
             "priority": 1,
@@ -375,13 +384,20 @@ async def try_broadcast_to_service(session: aiohttp.ClientSession, service: Dict
     """
     start_time = time.time()
     service_name = service["name"]
-    tx_hex = service["data"].get("tx") or service["data"].get("data")
+    
+    # Handle both raw tx_hex and JSON data formats
+    if isinstance(service["data"], dict):
+        tx_hex = service["data"].get("tx") or service["data"].get("data") or service["data"].get("rawhex")
+        use_json = True
+    else:
+        tx_hex = service["data"]
+        use_json = False
     
     try:
         logger.info(f"[BROADCAST] Tentando broadcast via {service_name}")
         
-        if len(tx_hex) > 200000:  
-            error_msg = "Transação muito grande para transmissão"
+        if not tx_hex or len(tx_hex) > 200000:  
+            error_msg = "Transação inválida ou muito grande para transmissão"
             logger.error(f"[BROADCAST] {error_msg} via {service_name}")
             return {
                 "success": False,
@@ -390,14 +406,24 @@ async def try_broadcast_to_service(session: aiohttp.ClientSession, service: Dict
                 "status_code": 413
             }
         
-        timeout_seconds = min(30 + (len(tx_hex) // 1000), 120)  
+        timeout_seconds = min(30 + (len(tx_hex) // 1000), 120)
         
-        async with session.post(
-            url=service["url"],
-            json=service["data"],
-            headers={"Content-Type": "application/json"},
-            timeout=aiohttp.ClientTimeout(total=timeout_seconds)
-        ) as response:
+        # Prepare request parameters
+        request_params = {
+            'url': service["url"],
+            'timeout': aiohttp.ClientTimeout(total=timeout_seconds)
+        }
+        
+        # Add headers and data based on content type
+        if use_json:
+            request_params['json'] = service["data"]
+            request_params['headers'] = {"Content-Type": "application/json"}
+        else:
+            request_params['data'] = tx_hex
+            request_params['headers'] = service.get("headers", {})
+        
+        # Make the request
+        async with session.post(**request_params) as response:
             elapsed = time.time() - start_time
             response_text = (await response.text()).strip()
             
@@ -552,7 +578,9 @@ async def broadcast_transaction(request: BroadcastRequest):
     tx_hex = request.tx_hex.strip() if request.tx_hex else ""
     
     logger.debug(f"[BROADCAST] Raw request data: {request}")
-    logger.debug(f"[BROADCAST] Raw tx_hex (first 100 chars): {tx_hex[:100]}...")
+    logger.debug(f"[BROADCAST] Raw tx_hex (first 200 chars): {tx_hex[:200]}")
+    logger.debug(f"[BROADCAST] Raw tx_hex (last 100 chars): {tx_hex[-100:]}")
+    logger.debug(f"[BROADCAST] Transaction length: {len(tx_hex)} characters")
     
     if not tx_hex:
         logger.error("[BROADCAST] Transação vazia")

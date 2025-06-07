@@ -46,7 +46,7 @@ class WalletResponse(BaseModel):
                     "name": "Carteira de Teste",
                     "description": "Carteira para testes na rede testnet",
                     "address": "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx",
-                    "private_key": None,  
+                    "private_key": "cVj1f8zYh3kQ4Xhq5Vz7x9B2nM3qW2e4rT6y7u8i9o0pLkJuHyGtFdDsA",  
                     "public_key": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
                     "key_type": "p2wpkh",
                     "network": "testnet",

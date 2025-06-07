@@ -81,6 +81,7 @@ class BitcoinLibBuilder(TransactionBuilder):
             logger.info(f"Creating transaction with parameters: version=2, locktime=0, network={network}, "
                        f"fee={fee}, fee_per_kb={int(fee * 1000)}, witness_type=segwit")
             try:
+                # Create basic transaction
                 tx = Transaction(
                     version=2,
                     locktime=0,
@@ -89,6 +90,10 @@ class BitcoinLibBuilder(TransactionBuilder):
                     fee_per_kb=int(fee * 1000),
                     witness_type='segwit'
                 )
+                
+                # Set SegWit serialization mode if supported
+                if hasattr(tx, 'segwit'):
+                    tx.segwit = True
                 
                 # Add all inputs first
                 for tx_input in tx_inputs:

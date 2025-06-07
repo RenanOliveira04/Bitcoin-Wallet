@@ -2,8 +2,8 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Foreig
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import datetime
-import os
 from pathlib import Path
+from app.config import DATA_DIR
 
 Base = declarative_base()
 
@@ -12,14 +12,15 @@ class Wallet(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    address = Column(String, unique=True, index=True)
-    private_key = Column(String, nullable=True)  # Store encrypted private key
-    public_key = Column(String)
-    format = Column(String)  # p2pkh, p2sh, p2wpkh, p2tr
-    network = Column(String)  # testnet, mainnet
+    address = Column(String, unique=True, index=True, nullable=False)
+    private_key = Column(String, nullable=True)  # Pode ser nulo para carteiras somente leitura
+    public_key = Column(String, nullable=False)
+    format = Column(String, nullable=False)  # p2pkh, p2sh, p2wpkh, p2tr
+    network = Column(String, nullable=False)  # testnet, mainnet
+    key_generation_method = Column(String, default='entropy')  # entropy, bip39, bip32
     derivation_path = Column(String, nullable=True)
     mnemonic = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     
     transactions = relationship("Transaction", back_populates="wallet")
     utxos = relationship("UTXO", back_populates="wallet")
@@ -53,13 +54,6 @@ class UTXO(Base):
     wallet = relationship("Wallet", back_populates="utxos")
 
 def get_database_path():
-    data_dir = Path.home() / ".bitcoin-wallet" / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    
-    db_path = data_dir / "wallet.db"
-    return f"sqlite:///{db_path}"
-
-def init_db():
-    engine = create_engine(get_database_path())
-    Base.metadata.create_all(bind=engine)
-    return engine
+    """Get the path to the SQLite database file."""
+    db_path = Path(DATA_DIR) / 'bitcoin_wallet.db'
+    return f"sqlite:///{db_path.absolute().as_posix()}"

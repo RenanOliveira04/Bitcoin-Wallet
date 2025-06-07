@@ -1,14 +1,22 @@
 from sqlalchemy.orm import Session, sessionmaker
-from .models import init_db, Wallet, Transaction, UTXO
-from typing import List, Optional, Dict, Any
+from sqlalchemy import create_engine
+from .models import Base, Wallet, Transaction, UTXO
+from ..config import DATABASE_URL
+from typing import List, Optional, Dict, Any, Generator
 import logging
 
 logger = logging.getLogger(__name__)
 
-engine = init_db()
+# Cria o engine do SQLAlchemy
+engine = create_engine(DATABASE_URL)
+
+# Cria a fábrica de sessões
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-def get_db():
+# Cria as tabelas se não existirem
+Base.metadata.create_all(bind=engine)
+
+def get_db() -> Generator[Session, None, None]:
     """Fornece uma sessão de banco de dados para uso em operações"""
     db = SessionLocal()
     try:
